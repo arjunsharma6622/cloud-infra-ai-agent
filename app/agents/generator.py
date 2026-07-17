@@ -16,8 +16,17 @@ def iac_generator_node(state: AgentState) -> dict:
     llm = ChatGoogleGenerativeAI(model=os.getenv("GENERATOR_MODEL_NAME", "gemini-2.5-pro"))
     structured_llm = llm.with_structured_output(TerraformProject)
 
+    formatting_rules = """
+    CRITICAL FORMATTING RULES:
+    1. Do NOT compress or squash the code into a single line. 
+    2. Write the code EXACTLY as it should look in a modern code editor like VS Code.
+    3. Use standard 2-space indentations for all nested attributes inside code blocks.
+    4. Provide clear newline breaks between different resource blocks, variable definitions, and outputs.
+    """
+
     if state.get("validation_attempts", 0) > 0:
         prompt = f"""
+        {formatting_rules}
         You previously generated Terraform code that threw a syntax error.
         Previous Code: {state['generated_code']}
         Compiler Error: {state['validation_errors']}
@@ -25,6 +34,7 @@ def iac_generator_node(state: AgentState) -> dict:
         """
     else:
         prompt = f"""
+        {formatting_rules}
         Translate the following architecture plan into production-ready Azure Terraform code.
         Plan: {state['architecture_plan']}
         """

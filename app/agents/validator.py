@@ -5,6 +5,13 @@ def validation_agent_node(state: AgentState) -> dict:
     attempts = state.get("validation_attempts", 0)
 
     # MOCK BEHAVIOR: We intentionally fail it on the first pass to test the LangGraph loop!
+    # here we have 2 ways of doing
+    """
+    we have 2 ways of implementing this
+    1. subprocess (good for now for MVP)
+    2. dedicated docker container (isolation and pre installed libs) (later)
+    
+    """
     if attempts == 0:
         print("--> Mocking a syntax error")
 
