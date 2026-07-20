@@ -1,4 +1,4 @@
-from typing import TypedDict, Dict, Any
+from typing import TypedDict, Dict, Any,Literal
 
 class AgentState(TypedDict):
     user_prompt: str
@@ -9,3 +9,9 @@ class AgentState(TypedDict):
     validation_passed: bool
     validation_errors: str
     validation_attempts: int
+
+    #Security Guardrails
+
+    security_status: Literal["blocked","passed"]
+    security_message: str
+    security_reason: list[str]
