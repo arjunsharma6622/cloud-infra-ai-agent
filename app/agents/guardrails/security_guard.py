@@ -38,7 +38,7 @@ def security_guard_node(state: AgentState) -> dict:
             "security_status": "blocked",
 
             "security_message":
-            "⚠️ Your prompt contains malicious or dangerous instructions. Request cannot be processed.",
+            "Your prompt contains malicious or dangerous instructions. Request cannot be processed.",
 
             "security_reason": detected
 
