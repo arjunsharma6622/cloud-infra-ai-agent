@@ -1,8 +1,12 @@
-from typing import TypedDict, Dict, Any, Annotated
+from typing import TypedDict, Dict, Any, Annotated, Optional
 from langgraph.graph.message import add_messages
 
 class AgentState(TypedDict):
+    thread_id: str
+    
     messages: Annotated[list, add_messages]
+
+    clarification_question: Optional[str]
 
     project_spec: Dict[str, Any]
 
