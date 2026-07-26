@@ -10,6 +10,10 @@ MODEL_CONFIG = {
         "provider": LLMProvider.GEMINI,
         "model": "gemini-3.1-flash-lite",
     },
+    "srs": {
+        "provider": LLMProvider.GEMINI,
+        "model": "gemini-3.1-flash-lite"
+    },
     "architecture": {
         "provider": LLMProvider.GEMINI,
         "model": "gemini-3.1-flash-lite",
@@ -26,6 +30,7 @@ MODEL_CONFIG = {
 
 class AgentType(str, Enum):
     PARSER = "parser"
+    SRS = "srs"
     ARCHITECTURE = "architecture"
     GENERATOR = "generator"
     VALIDATOR = "validator"

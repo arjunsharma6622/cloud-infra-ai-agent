@@ -3,7 +3,7 @@ from .state import AgentState
 def route_after_parser(state: AgentState):
     if state.get("clarification_question"):
         return "clarification"
-    return "architecture_planner"
+    return "srs_generator"
 
 def route_after_validation(state: AgentState) -> str:
     # Explicitly check the boolean state

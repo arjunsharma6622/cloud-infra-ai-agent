@@ -16,6 +16,8 @@ def architecture_planner_node(state: AgentState) -> dict:
 
     # TODO: think if we should pass in the entire state for the sake of more context, so let the prev agent do its job perfectly
 
-    result = llm.invoke([sys_msg, human_msg])
+    response = llm.invoke([sys_msg, human_msg])
 
-    return {"architecture_plan": result.content}
+    return {
+        "architecture_plan": response.text() if hasattr(response, "text") else response.content
+    }

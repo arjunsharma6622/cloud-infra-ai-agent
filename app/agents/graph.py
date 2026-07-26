@@ -1,6 +1,7 @@
 from langgraph.graph import StateGraph, END
 from .state import AgentState
 from .parser import intent_parser_node
+from .srs import srs_node
 from .planner import architecture_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
@@ -12,6 +13,7 @@ from .graph_helper_functions import route_after_parser, route_after_validation
 workflow = StateGraph(AgentState)
 
 workflow.add_node("intent_parser", intent_parser_node)
+workflow.add_node("srs_generator", srs_node)
 workflow.add_node("architecture_planner", architecture_planner_node)
 workflow.add_node("iac_generator", iac_generator_node)
 workflow.add_node("validation_agent", validation_agent_node)
@@ -26,9 +28,11 @@ workflow.add_conditional_edges(
     route_after_parser,
     {
         "clarification": "clarification",
-        "architecture_planner": "architecture_planner",
+        "srs_generator": "srs_generator",
     },
 )
+
+workflow.add_edge("srs_generator", "architecture_planner")
 
 workflow.add_edge("architecture_planner", "iac_generator")
 
