@@ -16,7 +16,7 @@ MODEL_CONFIG = {
     },
     "generator": {
         "provider": LLMProvider.GEMINI,
-        "model": "gemini-3.1-flash-lite",
+        "model": "gemini-3.6-flash",
     },
     "validator": {
         "provider": LLMProvider.GEMINI,
