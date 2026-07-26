@@ -1,7 +1,8 @@
 import os
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
 from .state import AgentState
+from app.llms import get_agent_structured_llm
+from app.config import AgentType
 
 class TerraformProject(BaseModel):
     # TODO: currently getting all in one file, but in reality we need modules directory str etc...
@@ -12,9 +13,7 @@ class TerraformProject(BaseModel):
 def iac_generator_node(state: AgentState) -> dict:
     print("--- [Agent] IaC Generator Working ---")
 
-    # We use Gemini 2.5 Pro here because code generation requires complex reasoning
-    llm = ChatGoogleGenerativeAI(model=os.getenv("GENERATOR_MODEL_NAME", "gemini-2.5-pro"))
-    structured_llm = llm.with_structured_output(TerraformProject)
+    structured_llm = get_agent_structured_llm(AgentType.ARCHITECTURE, TerraformProject)
 
     formatting_rules = """
     CRITICAL FORMATTING RULES:

@@ -1,6 +1,5 @@
 import os
 from pydantic import BaseModel, Field
-from langchain_google_genai import ChatGoogleGenerativeAI
 from .state import AgentState
 from typing import List, Optional
 from langchain_core.messages import SystemMessage

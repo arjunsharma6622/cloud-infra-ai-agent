@@ -1,13 +1,15 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from .state import AgentState
 from .prompts import ARCHITECTURE_AGENT_SYSTEM_PROMPT
+from app.llms import get_agent_llm
+from app.config import AgentType
+
 
 def architecture_planner_node(state: AgentState) -> dict:
     print("--- [Agent] Architecture Planner Working ---")
 
-    llm = ChatGoogleGenerativeAI(model=os.getenv("PLANNER_MODEL_NAME", "gemini-2.5-flash"))
+    llm = get_agent_llm(AgentType.ARCHITECTURE)
 
     sys_msg = SystemMessage(content=ARCHITECTURE_AGENT_SYSTEM_PROMPT)
     human_msg = HumanMessage(content=f"Specification: {state['project_spec']}")
