@@ -2,7 +2,7 @@ from langgraph.graph import StateGraph, END
 from .state import AgentState
 from .parser import intent_parser_node
 from .srs import srs_node
-from .planner import architecture_planner_node
+from .architecture import architecture_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
 import sqlite3
