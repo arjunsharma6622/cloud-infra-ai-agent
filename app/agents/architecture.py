@@ -4,20 +4,30 @@ from .state import AgentState
 from .prompts import ARCHITECTURE_AGENT_SYSTEM_PROMPT
 from app.llms import get_agent_llm
 from app.config import AgentType
-
+import json
 
 def architecture_planner_node(state: AgentState) -> dict:
     print("--- [Agent] Architecture Planner Working ---")
 
     llm = get_agent_llm(AgentType.ARCHITECTURE)
 
-    sys_msg = SystemMessage(content=ARCHITECTURE_AGENT_SYSTEM_PROMPT)
-    human_msg = HumanMessage(content=f"Specification: {state['project_spec']}")
+    prompt = [
+        SystemMessage(content=ARCHITECTURE_AGENT_SYSTEM_PROMPT),
+        *state['messages'],
+        HumanMessage(
+            content=f"""Project Specification (Authoritative Source)
 
-    # TODO: think if we should pass in the entire state for the sake of more context, so let the prev agent do its job perfectly
+        ```json
+        {json.dumps(state["project_spec"], indent=2)}
+        ```
+        """
+        )
+    ]
 
-    response = llm.invoke([sys_msg, human_msg])
+    response = llm.invoke(prompt)
 
     return {
         "architecture_plan": response.text() if hasattr(response, "text") else response.content
     }
+
+
