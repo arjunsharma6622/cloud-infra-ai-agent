@@ -7,10 +7,20 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 import sqlite3
 from langgraph.types import Command
+from app.database.schema import init_db
+from app.database.chat_repository import ChatRepository
+from app.database.constants import Role, MessageType
 
 load_dotenv()
 
 app = FastAPI(title="Infra AI Agent")
+
+chat_repo = ChatRepository()
+
+@app.on_event("startup")
+def startup():
+
+    init_db()
 
 class ChatRequest(BaseModel):
     thread_id: str
@@ -22,50 +32,38 @@ db_path = "checkpoints.sqlite"
 @app.get("/chats")
 def get_all_chats():
     try:
-        # Query the SQLite checkpointer database directly for unique thread IDs
-        conn_query = sqlite3.connect(db_path)
-        cursor = conn_query.cursor()
-        cursor.execute("SELECT DISTINCT thread_id FROM checkpoints")
-        threads = [row[0] for row in cursor.fetchall()]
-        conn_query.close()
-        return {"threads": threads}
+        projects = chat_repo.list_projects()
+
+        return {"threads": projects}
     except Exception as e:
         return {"threads": []}
 
-@app.post("/chat")
-def run_assistant(request: ChatRequest):
-    initial_state = {
-        "user_prompt": request.prompt,
-        "validation_attempts": 0,
-        "validation_passed": False,
-        "validation_errors": ""
-    }
-
-    final_output = compiled_graph.invoke(initial_state)
-    return final_output
-
 @app.get("/chat/{thread_id}/history")
 def get_chat_history(thread_id: str):
-    config = {"configurable": {"thread_id": thread_id}}
-    state_snapshot = compiled_graph.get_state(config)
+    messages = chat_repo.get_messages(thread_id)
     
-    if not state_snapshot.values:
-        return {"messages": []}
-    
-    state_data = state_snapshot.values
-    
-    # Reconstruct the frontend payload based on the saved LangGraph state
     return {
-        "user_prompt": state_data.get("user_prompt", ""),
-        "spec": state_data.get("project_spec", {}),
-        "plan": state_data.get("architecture_plan", ""),
-        "code": state_data.get("generated_code", {})
+        "messages": messages
     }
 
 
 @app.post("/stream")
 async def stream_assistant(request: ChatRequest):
     config = {"configurable": {"thread_id": request.thread_id}}
+
+    thread_id = request.thread_id
+    user_prompt = request.prompt
+
+    # DB: create a new proj if dose not exist
+    chat_repo.create_project(thread_id=thread_id, title=f"Proj-{thread_id[:8]}")
+
+    # DB : save user prompt in msg
+    chat_repo.save_message(
+        thread_id=thread_id, 
+        role=Role.USER, 
+        message_type=MessageType.TEXT, 
+        content=user_prompt
+    )
 
     snapshot = compiled_graph.get_state(config)
 
@@ -99,10 +97,20 @@ async def stream_assistant(request: ChatRequest):
                 print("Sending interrupt to client")
 
                 interrupt = event["__interrupt__"][0]
+                clarifying_question = interrupt.value
+
+                # DB: save clarifying question in db
+                print("Saving question to db")
+                chat_repo.save_message(
+                    thread_id=thread_id,
+                    role=Role.ASSISTANT,
+                    message_type=MessageType.CLARIFICATION,
+                    content=clarifying_question
+                )
 
                 yield json.dumps({
                     "type": "interrupt",
-                    "message": interrupt.value,
+                    "message": clarifying_question,
                 }) + "\n"
 
                 print("Interrupt yielded")
@@ -119,6 +127,27 @@ async def stream_assistant(request: ChatRequest):
                 safe_event[node_name] = payload
 
             yield json.dumps(safe_event) + "\n"
+
+        # Graph completed
+        final_state = compiled_graph.get_state(config).values
+
+        # DB : save final state in db
+        chat_repo.save_message(
+            thread_id=thread_id, 
+            role=Role.ASSISTANT, 
+            message_type=MessageType.FINAL_OUTPUT, 
+            content=json.dumps(
+                {
+                    "project_spec": final_state.get("project_spec"),
+                    "srs": final_state.get("srs_document"),
+                    "architecture": final_state.get("architecture_plan"),
+                    "terraform": final_state.get("generated_code"),
+                }
+            ),
+            metadata={
+                "agent": "graph_complete"
+            }
+        )
 
         print("EVENT Ended...")
 
