@@ -7,10 +7,16 @@ from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
 import sqlite3
 from langgraph.types import Command
+from app.database.schema import init_db
 
 load_dotenv()
 
 app = FastAPI(title="Infra AI Agent")
+
+@app.on_event("startup")
+def startup():
+
+    init_db()
 
 class ChatRequest(BaseModel):
     thread_id: str
