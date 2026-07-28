@@ -14,3 +14,7 @@ wheels/
 **/checkpoints.sqlite
 **/checkpoints.sqlite-shm
 **/checkpoints.sqlite-wal
+
+*.sqlite
+*.sqlite3
+*.db
