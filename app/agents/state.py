@@ -16,6 +16,7 @@ class AgentState(TypedDict):
     
     generated_code: Dict[str, str]
 
+    validation_stage: str
     validation_passed: bool
     validation_errors: str
     validation_attempts: int

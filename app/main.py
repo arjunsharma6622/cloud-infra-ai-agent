@@ -5,11 +5,11 @@ from dotenv import load_dotenv
 import json
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage
-import sqlite3
 from langgraph.types import Command
 from app.database.schema import init_db
 from app.database.chat_repository import ChatRepository
 from app.database.constants import Role, MessageType
+import shutil
 
 load_dotenv()
 
@@ -21,6 +21,9 @@ chat_repo = ChatRepository()
 def startup():
 
     init_db()
+
+    if shutil.which("terraform") is None:
+        raise RuntimeError("Terraform executable not found.")
 
 class ChatRequest(BaseModel):
     thread_id: str
@@ -70,7 +73,7 @@ async def stream_assistant(request: ChatRequest):
     async def event_generator():
 
         if snapshot.next:
-            stream = compiled_graph.stream(
+            stream = compiled_graph.astream(
                 Command(resume=request.prompt),
                 config=config,                
             )
@@ -84,12 +87,12 @@ async def stream_assistant(request: ChatRequest):
                 "validation_errors": "",
             }
 
-            stream = compiled_graph.stream(
+            stream = compiled_graph.astream(
                 initial_state,
                 config=config,
             )
 
-        for event in stream:
+        async for event in stream:
             
             if "__interrupt__" in event:
                 print(event)

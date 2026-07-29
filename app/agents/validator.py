@@ -1,29 +1,64 @@
 from .state import AgentState
 
-def validation_agent_node(state: AgentState) -> dict:
+from app.tf_validation.workspace import (
+    create_workspace,
+    write_files,
+    cleanup_workspace,
+)
+
+from app.tf_validation.runner import (
+    terraform_init,
+    terraform_validate,
+)
+
+from app.tf_validation.parser import (
+    parse_validation_output,
+)
+
+
+async def validation_agent_node(state: AgentState) -> dict:
     print("--- [Agent] Validation Agent Working ---")
+
     attempts = state.get("validation_attempts", 0)
+    generated_code = state["generated_code"]
 
-    # MOCK BEHAVIOR: We intentionally fail it on the first pass to test the LangGraph loop!
-    # here we have 2 ways of doing
-    """
-    we have 2 ways of implementing this
-    1. subprocess (good for now for MVP)
-    2. dedicated docker container (isolation and pre installed libs) (later)
-    
-    """
-    if attempts == 0:
-        print("--> Mocking a syntax error")
+    workspace = create_workspace()
+
+    try:
+        # Write generated Terraform files
+        write_files(workspace, generated_code)
+
+        # -----------------------------
+        # Terraform Init
+        # -----------------------------
+        init_code, init_output = await terraform_init(workspace)
+
+        if init_code != 0:
+            return {
+                "validation_passed": False,
+                "validation_stage": "init",
+                "validation_errors": init_output,
+                "validation_attempts": attempts + 1,
+            }
+
+        # -----------------------------
+        # Terraform Validate
+        # -----------------------------
+        validate_code, validate_output = await terraform_validate(workspace)
+
+        passed, diagnostics = parse_validation_output(validate_output)
+
+        error_messages = [
+            f"[{d['file']}] {d['summary']}: {d['detail']}"
+            for d in diagnostics
+        ]
 
         return {
-            "validation_passed": False,
-            "validation_errors": "Error: Missing required argument 'name' in resource 'azurerm_resource_group'.",
-            "validation_attempts": attempts+1
+            "validation_passed": passed and validate_code == 0,
+            "validation_stage": "validate",
+            "validation_errors": "\n".join(error_messages),
+            "validation_attempts": attempts + 1,
         }
-    else:
-        print("--> Mocking a successful validation...")
-        return {
-            "validation_passed": True,
-            "validation_errors": "",
-            "validation_attempts": attempts + 1
-        }
+
+    finally:
+        cleanup_workspace(workspace)
