@@ -14,4 +14,4 @@ class AgentState(TypedDict):
 
     security_status: Literal["blocked","passed"]
     security_message: str
-    security_reason: list[str]
+    security_reason: str
