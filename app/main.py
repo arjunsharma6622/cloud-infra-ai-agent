@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from app.agents.graph import compiled_graph
+from app.agents.graph import create_graph
 from dotenv import load_dotenv
 import json
 from fastapi.responses import StreamingResponse
@@ -11,6 +11,11 @@ from app.database.chat_repository import ChatRepository
 from app.database.constants import Role, MessageType
 import shutil
 
+# TEMP: generated files for validation
+from .config import generated_files
+from app.tf_validation.workspace import create_workspace, write_files
+from app.tf_validation.runner import terraform_init, terraform_validate
+
 load_dotenv()
 
 app = FastAPI(title="Infra AI Agent")
@@ -18,9 +23,12 @@ app = FastAPI(title="Infra AI Agent")
 chat_repo = ChatRepository()
 
 @app.on_event("startup")
-def startup():
+async def startup():
 
     init_db()
+
+    # adding compiled graph to the fastapi state
+    app.state.compiled_graph = await create_graph()
 
     if shutil.which("terraform") is None:
         raise RuntimeError("Terraform executable not found.")
@@ -31,6 +39,29 @@ class ChatRequest(BaseModel):
     prompt: str | None = None
 
 db_path = "checkpoints.sqlite"
+
+#  TEMP: for validation node testing
+@app.get("/validation")
+async def validation():
+
+    print("validation")
+    generated_files_for_validation = generated_files
+
+    workspace = create_workspace()
+
+    write_files(workspace, generated_files_for_validation)
+
+    init_code, init_output = await terraform_init(workspace)
+    validate_code, validate_output = await terraform_validate(workspace)
+
+
+
+    return {
+        "init_code": init_code,
+        "init_output": init_output,
+        "validate_code": validate_code,
+        "validate_output": validate_output
+    }
 
 @app.get("/chats")
 def get_all_chats():
@@ -68,11 +99,13 @@ async def stream_assistant(request: ChatRequest):
         content=user_prompt
     )
 
-    snapshot = compiled_graph.get_state(config)
+    compiled_graph = app.state.compiled_graph
+
+    snapshot = await compiled_graph.aget_state(config)
 
     async def event_generator():
 
-        if snapshot.next:
+        if snapshot.next :
             stream = compiled_graph.astream(
                 Command(resume=request.prompt),
                 config=config,                
@@ -132,7 +165,9 @@ async def stream_assistant(request: ChatRequest):
             yield json.dumps(safe_event) + "\n"
 
         # Graph completed
-        final_state = compiled_graph.get_state(config).values
+        final_state = (
+            await compiled_graph.aget_state(config)
+        ).values
 
         # DB : save final state in db
         chat_repo.save_message(

@@ -1,7 +1,75 @@
 import asyncio
+import subprocess
 from pathlib import Path
 
 TF_TIMEOUT = 120
+
+
+def _run_sync(
+    command: list[str],
+    cwd: Path,
+    timeout: int = TF_TIMEOUT,
+) -> tuple[int, str]:
+    """
+    Executes a command synchronously.
+
+    Returns:
+        (
+            return_code,
+            combined_stdout_stderr,
+        )
+    """
+
+    try:
+        result = subprocess.run(
+            command,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        print("=" * 80)
+        
+        print("COMMAND:", " ".join(command))
+        print("RETURN CODE:", result.returncode)
+
+        if result.stdout:
+            print("\nSTDOUT:")
+            print(result.stdout)
+
+        if result.stderr:
+            print("\nSTDERR:")
+            print(result.stderr)
+
+        print("=" * 80)
+
+        output = result.stdout
+        if result.stderr:
+            output += result.stderr
+
+        return (
+            result.returncode,
+            output,
+        )
+
+    except subprocess.TimeoutExpired:
+        return (
+            -1,
+            f"Command timed out after {timeout} seconds.",
+        )
+
+    except FileNotFoundError:
+        return (
+            -1,
+            "Terraform executable not found. Ensure Terraform is installed and available in PATH.",
+        )
+
+    except Exception as e:
+        return (
+            -1,
+            f"Unexpected error: {e}",
+        )
 
 
 async def _run(
@@ -10,39 +78,15 @@ async def _run(
     timeout: int = TF_TIMEOUT,
 ) -> tuple[int, str]:
     """
-    Executes a command and returns:
-
-    (
-        return_code,
-        combined_stdout_stderr
-    )
+    Executes a command in a background thread so the event loop
+    remains responsive.
     """
 
-    process = await asyncio.create_subprocess_exec(
-        *command,
-        cwd=cwd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-
-    try:
-        stdout, _ = await asyncio.wait_for(
-            process.communicate(),
-            timeout=timeout,
-        )
-
-    except asyncio.TimeoutError:
-        process.kill()
-        await process.wait()
-
-        return (
-            -1,
-            f"Command timed out after {timeout} seconds.",
-        )
-
-    return (
-        process.returncode,
-        stdout.decode(errors="replace"),
+    return await asyncio.to_thread(
+        _run_sync,
+        command,
+        cwd,
+        timeout,
     )
 
 
@@ -51,7 +95,7 @@ async def terraform_init(
 ) -> tuple[int, str]:
     """
     Runs:
-        terraform init
+        terraform init -backend=false -input=false
     """
 
     return await _run(
