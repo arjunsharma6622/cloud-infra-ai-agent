@@ -53,6 +53,17 @@ async def validation():
     write_files(workspace, generated_files_for_validation)
 
     init_code, init_output = await terraform_init(workspace)
+
+    print(init_output)
+
+    if init_code != 0:
+        return {
+            "validation_passed": False,
+            "validation_stage": "init",
+            "validation_errors": init_output,
+            # "validation_attempts": attempts + 1,
+        }
+    
     validate_code, validate_output = await terraform_validate(workspace)
 
     passed, diagnostics = parse_validation_output(validate_output)

@@ -29,9 +29,9 @@ def _run_sync(
             timeout=timeout,
         )
 
-        print("=" * 80)
+        print("\n" + "=" * 80)
         
-        print("COMMAND:", " ".join(command))
+        print(f"Running: {' '.join(command)}")
         print("RETURN CODE:", result.returncode)
 
         if result.stdout:
@@ -104,6 +104,7 @@ async def terraform_init(
             "init",
             "-backend=false",
             "-input=false",
+            "-no-color"
         ],
         workspace,
     )
@@ -122,6 +123,7 @@ async def terraform_validate(
             "terraform",
             "validate",
             "-json",
+            "-no-color"
         ],
         workspace,
     )

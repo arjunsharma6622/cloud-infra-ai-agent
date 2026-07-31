@@ -22,6 +22,16 @@ async def validation_agent_node(state: AgentState) -> dict:
     attempts = state.get("validation_attempts", 0)
     generated_code = state["generated_code"]
 
+    if not generated_code:
+        return {
+            "validation_passed": False,
+            "validation_stage": "generator",
+            "validation_errors": [{
+                "summary": "Generator produced no Terraform files."
+            }],
+            "validation_attempts": attempts + 1,
+        }
+
     workspace = create_workspace()
 
     try:
@@ -32,6 +42,8 @@ async def validation_agent_node(state: AgentState) -> dict:
         # Terraform Init
         # -----------------------------
         init_code, init_output = await terraform_init(workspace)
+
+        print(init_output)
 
         if init_code != 0:
             return {
