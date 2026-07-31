@@ -1,9 +1,9 @@
 from .state import AgentState
 from langgraph.graph import StateGraph, END
 
-def route_after_security(state: AgentState):
-    print(state["security_passed"])
-    if state["security_passed"]:
+def route_after_guardrail(state: AgentState):
+    print(state["isCompliant"])
+    if state["isCompliant"]:
         return "intent_parser"
     return "end"
 

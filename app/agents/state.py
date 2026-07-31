@@ -21,5 +21,5 @@ class AgentState(TypedDict):
     validation_attempts: int
     
     # security features
-    security_passed:bool
-    security_reason:str
+    isCompliant:bool
+    guardrailMessage:str

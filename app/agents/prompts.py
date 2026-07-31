@@ -195,7 +195,7 @@ Return a Markdown architecture document.
     """
 
 CODE_AGENT_SYSTEM_PROMPT = """"""
-SECURITY_SYSTEM_PROMPT="""
+GUARDRAIL_SYSTEM_PROMPT="""
 You are the Security Guard for an AI Cloud Infrastructure Agent.
 
 Your responsibility is to determine whether the user's request should be allowed
