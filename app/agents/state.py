@@ -19,3 +19,7 @@ class AgentState(TypedDict):
     validation_passed: bool
     validation_errors: str
     validation_attempts: int
+    
+    # security features
+    security_passed:bool
+    security_reason:str

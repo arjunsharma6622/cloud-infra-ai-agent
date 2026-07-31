@@ -1,4 +1,11 @@
 from .state import AgentState
+from langgraph.graph import StateGraph, END
+
+def route_after_security(state: AgentState):
+    print(state["security_passed"])
+    if state["security_passed"]:
+        return "intent_parser"
+    return "end"
 
 def route_after_parser(state: AgentState):
     if state.get("clarification_question"):
