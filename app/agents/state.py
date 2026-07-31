@@ -18,5 +18,5 @@ class AgentState(TypedDict):
 
     validation_stage: str
     validation_passed: bool
-    validation_errors: str
+    validation_errors: list[dict[str, str]]
     validation_attempts: int

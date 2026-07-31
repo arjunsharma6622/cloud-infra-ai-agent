@@ -48,17 +48,19 @@ async def validation_agent_node(state: AgentState) -> dict:
 
         passed, diagnostics = parse_validation_output(validate_output)
 
-        error_messages = [
-            f"[{d['file']}] {d['summary']}: {d['detail']}"
-            for d in diagnostics
-        ]
+        # error_messages = [
+        #     f"[{d['file']}] {d['summary']}: {d['detail']}"
+        #     for d in diagnostics
+        # ]
 
         return {
             "validation_passed": passed and validate_code == 0,
             "validation_stage": "validate",
-            "validation_errors": "\n".join(error_messages),
+            "validation_errors": diagnostics,
             "validation_attempts": attempts + 1,
         }
 
     finally:
-        cleanup_workspace(workspace)
+        # TEMP
+        print("Clean workspace, but not doing for debugging")
+    #     cleanup_workspace(workspace)

@@ -15,6 +15,7 @@ import shutil
 from .config import generated_files
 from app.tf_validation.workspace import create_workspace, write_files
 from app.tf_validation.runner import terraform_init, terraform_validate
+from app.tf_validation.parser import parse_validation_output
 
 load_dotenv()
 
@@ -54,14 +55,26 @@ async def validation():
     init_code, init_output = await terraform_init(workspace)
     validate_code, validate_output = await terraform_validate(workspace)
 
+    passed, diagnostics = parse_validation_output(validate_output)
 
+        # error_messages = [
+        #     f"[{d['file']}] {d['summary']}: {d['detail']}"
+        #     for d in diagnostics
+        # ]
 
     return {
-        "init_code": init_code,
-        "init_output": init_output,
-        "validate_code": validate_code,
-        "validate_output": validate_output
+        "validation_passed": passed and validate_code == 0,
+        "validation_stage": "validate",
+        "validation_errors": diagnostics,
+        # "validation_attempts": attempts + 1,
     }
+
+    # return {
+    #     "init_code": init_code,
+    #     "init_output": init_output,
+    #     "validate_code": validate_code,
+    #     "validate_output": validate_output
+    # }
 
 @app.get("/chats")
 def get_all_chats():
