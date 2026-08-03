@@ -38,6 +38,57 @@ class AgentType(str, Enum):
     GENERATOR = "generator"
     VALIDATOR = "validator"
 
+VALIDATION_MAX_RETRIES = 5
+
+
+archi = """
+Production Cloud Architecture: Python Web Application (Azure)
+This architecture provides a secure, monitored environment for a Python web application hosted on Azure. It leverages managed identities to eliminate the need for hardcoded database connection strings, ensuring a production-grade security posture.
+
+1. Architectural Components
+Resource Name	Type	Reasoning
+rg-webapp-prod	Resource Group	Logical container for all project assets.
+appi-webapp-prod	Application Insights	Provides Application Performance Management (APM).
+log-analytics-prod	Log Analytics Workspace	Centralized data sink for Application Insights and resource logs.
+sql-server-prod*	Azure SQL Server	Logical server required to host the SQL database.
+sql-db-prod	Azure SQL Database	Backend persistence layer.
+asp-webapp-prod*	App Service Plan	Compute abstraction for hosting the App Service.
+app-svc-python-prod	App Service (Linux)	Runtime host for the Python web application.
+*Inferred infrastructure components required for successful deployment.
+
+2. Deployment Phases and Dependency Order
+Resources should be deployed in the following order to ensure dependencies (like logging destinations and compute plans) are available before the application and database are created.
+
+Phase 1: Foundation & Monitoring
+Resource Group: rg-webapp-prod
+Log Analytics Workspace: log-analytics-prod
+Application Insights: appi-webapp-prod (Linked to Workspace)
+Phase 2: Data & Compute Infrastructure
+Azure SQL Server: (Required parent for sql-db-prod)
+Azure SQL Database: sql-db-prod
+App Service Plan: asp-webapp-prod (SKU: P1v2)
+Phase 3: Application Runtime
+App Service: app-svc-python-prod
+Configured with System Assigned Managed Identity.
+Enabled for HTTPS Only.
+Diagnostic logging forwarded to log-analytics-prod.
+3. Security & Networking
+Identity: The App Service will utilize a System-Assigned Managed Identity. Grant this identity db_datareader and db_datawriter roles within the Azure SQL Database to avoid credential management.
+HTTPS: Force HTTPS-only traffic at the App Service level.
+Database Access: Firewall rules on the SQL Server will be configured to allow Azure services and resources, with specific IP restrictions for administrative access.
+Diagnostic Logging: All resources will push diagnostic logs to the log-analytics-prod workspace.
+4. Terraform Module Recommendations
+To maintain clean state management and modularity, split the infrastructure into the following blocks:
+
+modules/monitoring: Handles Log Analytics and Application Insights creation.
+modules/database: Manages the SQL Server, SQL Database, and firewall rules.
+modules/compute: Manages the App Service Plan and App Service, including configuration of the Python runtime settings and Managed Identity association.
+5. Architectural Considerations
+Region: All resources reside in eastus to ensure low latency and compliance with the project specification.
+Auto-scaling: Since the App Service Plan (P1v2) is configured, ensure that the Azure Monitor autoscale rules are defined in the infrastructure code to trigger scaling based on CPU or Memory metrics.
+Naming Convention: All resources follow the provided naming pattern (e.g., app-svc-python-prod) to maintain parity with production operations standards.
+Note: This architecture assumes the deployment pipeline handles the assignment of the Managed Identity as the SQL database principal, which is the recommended practice for "infrastructure as code" (IaC) deployments."""
+
 
 # TEMP: validation test generated files contnet
 generated_files = {

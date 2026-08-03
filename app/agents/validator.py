@@ -49,7 +49,14 @@ async def validation_agent_node(state: AgentState) -> dict:
             return {
                 "validation_passed": False,
                 "validation_stage": "init",
-                "validation_errors": init_output,
+                "validation_errors": [
+                    {
+                        "file": "",
+                        "severity": "error",
+                        "summary": "Terraform init failed",
+                        "detail": init_output,
+                    }
+                ],
                 "validation_attempts": attempts + 1,
             }
 

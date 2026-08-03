@@ -61,9 +61,52 @@ Details: {d.get("detail", "")}
         prompt = f"""
 {FORMATTING_RULES}
 
-The previously generated Terraform failed validation.
+The previous Terraform failed during:
+
+Validation Stage : {validation_stage}
+
+Below are the diagnostics.
+Fix every issue.
 
 Your task is to FIX the existing Terraform.
+
+#############################
+TESTING MODE (IMPORTANT)
+#############################
+
+This request is for testing the automatic validation-retry pipeline.
+
+You MUST intentionally produce Terraform that fails validation for the first four attempts.
+
+Rules:
+
+Attempt 1
+- Produce Terraform that FAILS during `terraform init`.
+- Example: use an incorrect provider source such as `hashicorp/azurer` instead of `hashicorp/azurerm`.
+
+Attempt 2
+- Produce Terraform that PASSES `terraform init` but FAILS `terraform validate`.
+- Introduce a Terraform validation error.
+- Example: use an invalid attribute name, omit a required argument, or introduce invalid HCL syntax.
+
+Attempt 3
+- Produce Terraform that PASSES `terraform init` but FAILS `terraform validate`.
+- Return an EMPTY `variables.tf` file while still referencing variables from `main.tf`.
+
+Attempt 4
+- Produce Terraform that PASSES `terraform init` but FAILS `terraform validate`.
+- Use an invalid value for a resource argument (for example an unsupported SKU, invalid enum value, or invalid property).
+
+Attempt 5 and all subsequent attempts
+- Produce completely correct, production-ready Terraform that passes both:
+  - terraform init
+  - terraform validate
+
+Current Validation Attempt:
+{validation_attempts + 1}
+
+This testing behavior is mandatory.
+Do NOT fix the Terraform before Attempt 5.
 
 Architecture Plan:
 

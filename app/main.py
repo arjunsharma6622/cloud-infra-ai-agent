@@ -12,10 +12,12 @@ from app.database.constants import Role, MessageType
 import shutil
 
 # TEMP: generated files for validation
-from .config import generated_files
+from .config import archi
 from app.tf_validation.workspace import create_workspace, write_files
 from app.tf_validation.runner import terraform_init, terraform_validate
 from app.tf_validation.parser import parse_validation_output
+from app.services.terraform_generator import generate_terraform
+
 
 load_dotenv()
 
@@ -46,46 +48,74 @@ db_path = "checkpoints.sqlite"
 async def validation():
 
     print("validation")
-    generated_files_for_validation = generated_files
 
-    workspace = create_workspace()
+    architecture_plan = archi
 
-    write_files(workspace, generated_files_for_validation)
+    generated_files = generate_terraform(
+        architecture_plan=architecture_plan
+    )
 
-    init_code, init_output = await terraform_init(workspace)
+    for attempt in range(5):
+        print(f"\n========== Validation Attempt {attempt+1} ==========")
 
-    print(init_output)
+        print(generated_files)
+        
+        workspace = create_workspace()
 
-    if init_code != 0:
-        return {
-            "validation_passed": False,
-            "validation_stage": "init",
-            "validation_errors": init_output,
-            # "validation_attempts": attempts + 1,
-        }
-    
-    validate_code, validate_output = await terraform_validate(workspace)
+        try:
+            write_files(workspace, generated_files)
 
-    passed, diagnostics = parse_validation_output(validate_output)
+            # TERRAFORM INIT
+            init_code, init_output = await terraform_init(workspace)
 
-        # error_messages = [
-        #     f"[{d['file']}] {d['summary']}: {d['detail']}"
-        #     for d in diagnostics
-        # ]
+            if init_code != 0:
+
+                generated_files = generate_terraform(
+                    architecture_plan=architecture_plan,
+                    validation_attempts=attempt+1,
+                    validation_stage="init",
+                    validation_errors=[
+                        {
+                            "file": "",
+                            "severify": "error",
+                            "summary": "Terraform Init failed",
+                            "detail": init_output,
+                        }
+                    ],
+                    previous_code=generated_files
+                )
+
+                continue
+
+            # TERRAFORM VALIDATE
+            validate_code, validate_output = await terraform_validate(workspace)
+            passed, diagnostics = parse_validation_output(validate_output)
+
+            if passed and validate_code==0:
+                return {
+                    "validation_passed": True,
+                    "attempts": attempt+1,
+                    "generated_code": generated_files
+                }
+
+            generated_files = generate_terraform(
+                architecture_plan=architecture_plan,
+                validation_attempts=attempt+1,
+                validation_stage="validate",
+                validation_errors=diagnostics,
+                previous_code=generated_files,
+            )
+                  
+        finally:
+            print("DONE")
 
     return {
-        "validation_passed": passed and validate_code == 0,
-        "validation_stage": "validate",
-        "validation_errors": diagnostics,
-        # "validation_attempts": attempts + 1,
+        "validation_passed": False,
+        "attempts": 5,
+        "generated_code": generated_files,
+        "validation_errors": diagnostics if 'diagnostics' in locals() else init_output,
     }
 
-    # return {
-    #     "init_code": init_code,
-    #     "init_output": init_output,
-    #     "validate_code": validate_code,
-    #     "validate_output": validate_output
-    # }
 
 @app.get("/chats")
 def get_all_chats():
