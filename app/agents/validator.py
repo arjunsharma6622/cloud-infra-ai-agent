@@ -51,7 +51,7 @@ resource "azurerm_resource_group" "rg_invalid" {
             "validation_attempts": attempts + 1,
         }
 
-    workspace = create_workspace()
+    workspace = create_workspace(attempt=attempts)
 
     try:
         # Write generated Terraform files

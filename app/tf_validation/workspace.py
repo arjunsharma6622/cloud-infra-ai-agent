@@ -5,7 +5,7 @@ import tempfile
 PLAYGROUND_ROOT = Path("playground")
 
 
-def create_workspace() -> Path:
+def create_workspace(attempt) -> Path:
     """
     Creates a unique temporary workspace for one validation run.
     """
@@ -14,7 +14,7 @@ def create_workspace() -> Path:
 
     workspace = Path(
         tempfile.mkdtemp(
-            prefix="tf-",
+            prefix=f"tf-{attempt}-",
             dir=PLAYGROUND_ROOT,
         )
     )

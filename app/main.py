@@ -56,11 +56,33 @@ async def validation():
     )
 
     for attempt in range(5):
-        print(f"\n========== Validation Attempt {attempt+1} ==========")
+        print(f"\n========== Validation Attempt {attempt+1}, ## {attempt} ==========")
 
-        print(generated_files)
+        # print(generated_files)
+
         
-        workspace = create_workspace()
+        if attempt == 0:
+            generated_files["main.tf"] = generated_files["main.tf"].replace(
+                "hashicorp/azurerm",
+                "hashicorp/azurer",
+            )
+        elif attempt == 1:
+            generated_files["variables.tf"] = ""
+
+        elif attempt == 2:
+            generated_files["main.tf"] += """
+
+    resource "azurerm_resource_group" "rg_invalid" {
+    name     = "test-rg"
+    location = "Central India"
+
+    invalid_argument = true
+    }
+    """
+
+
+        
+        workspace = create_workspace(attempt=attempt+1)
 
         try:
             write_files(workspace, generated_files)
