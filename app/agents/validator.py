@@ -22,6 +22,25 @@ async def validation_agent_node(state: AgentState) -> dict:
     attempts = state.get("validation_attempts", 0)
     generated_code = state["generated_code"]
 
+    if attempts == 0:
+        generated_code["main.tf"] = generated_code["main.tf"].replace(
+            "hashicorp/azurerm",
+            "hashicorp/azurer",
+        )
+    elif attempts == 1:
+        generated_code["variables.tf"] = ""
+
+    elif attempts == 2:
+        generated_code["main.tf"] += """
+
+resource "azurerm_resource_group" "rg_invalid" {
+  name     = "test-rg"
+  location = "Central India"
+
+  invalid_argument = true
+}
+"""
+
     if not generated_code:
         return {
             "validation_passed": False,
