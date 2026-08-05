@@ -29,20 +29,20 @@ def _run_sync(
             timeout=timeout,
         )
 
-        print("\n" + "=" * 80)
+        # print("\n" + "=" * 80)
         
-        print(f"Running: {' '.join(command)}")
-        print("RETURN CODE:", result.returncode)
+        # print(f"Running: {' '.join(command)}")
+        # print("RETURN CODE:", result.returncode)
 
-        if result.stdout:
-            print("\nSTDOUT:")
-            print(result.stdout)
+        # if result.stdout:
+        #     print("\nSTDOUT:")
+        #     print(result.stdout)
 
-        if result.stderr:
-            print("\nSTDERR:")
-            print(result.stderr)
+        # if result.stderr:
+        #     print("\nSTDERR:")
+        #     print(result.stderr)
 
-        print("=" * 80)
+        # print("=" * 80)
 
         output = result.stdout
         if result.stderr:

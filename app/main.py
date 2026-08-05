@@ -17,6 +17,15 @@ from app.tf_validation.workspace import create_workspace, write_files
 from app.tf_validation.runner import terraform_init, terraform_validate
 from app.tf_validation.parser import parse_validation_output
 from app.services.terraform_generator import generate_terraform
+from uuid import uuid4
+from datetime import datetime
+from app.tf_validation.logger import (
+    log_attempt,
+    log_stage,
+    log_success,
+    log_failure,
+    log_output,
+)
 
 
 load_dotenv()
@@ -44,10 +53,107 @@ class ChatRequest(BaseModel):
 db_path = "checkpoints.sqlite"
 
 #  TEMP: for validation node testing
+# @app.get("/validation")
+# async def validation():
+
+#     print("validation")
+
+#     architecture_plan = archi
+
+#     generated_files = generate_terraform(
+#         architecture_plan=architecture_plan
+#     )
+
+#     validation_run_id = (
+#         f"{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
+#     )
+
+#     for attempt in range(5):
+#         print(f"\n========== Validation Attempt {attempt+1}, ## {attempt} ==========")
+
+#         # print(generated_files)
+
+        
+#         if attempt == 0:
+#             generated_files["main.tf"] = generated_files["main.tf"].replace(
+#                 "hashicorp/azurerm",
+#                 "hashicorp/azurer",
+#             )
+#         elif attempt == 1:
+#             generated_files["variables.tf"] = ""
+
+#         elif attempt == 2:
+#             generated_files["main.tf"] += """
+
+#     resource "azurerm_resource_group" "rg_invalid" {
+#     name     = "test-rg"
+#     location = "Central India"
+
+#     invalid_argument = true
+#     }
+#     """
+
+
+#         # workspace = create_workspace(attempt=attempt+1)
+#         workspace = create_workspace(validation_run_id, attempt + 1,)
+
+#         try:
+#             write_files(workspace, generated_files)
+
+#             # TERRAFORM INIT
+#             init_code, init_output = await terraform_init(workspace)
+
+#             if init_code != 0:
+
+#                 generated_files = generate_terraform(
+#                     architecture_plan=architecture_plan,
+#                     validation_attempts=attempt+1,
+#                     validation_stage="init",
+#                     validation_errors=[
+#                         {
+#                             "file": "",
+#                             "severify": "error",
+#                             "summary": "Terraform Init failed",
+#                             "detail": init_output,
+#                         }
+#                     ],
+#                     previous_code=generated_files
+#                 )
+
+#                 continue
+
+#             # TERRAFORM VALIDATE
+#             validate_code, validate_output = await terraform_validate(workspace)
+#             passed, diagnostics = parse_validation_output(validate_output)
+
+#             if passed and validate_code==0:
+#                 return {
+#                     "validation_passed": True,
+#                     "attempts": attempt+1,
+#                     "generated_code": generated_files
+#                 }
+
+#             generated_files = generate_terraform(
+#                 architecture_plan=architecture_plan,
+#                 validation_attempts=attempt+1,
+#                 validation_stage="validate",
+#                 validation_errors=diagnostics,
+#                 previous_code=generated_files,
+#             )
+                  
+#         finally:
+#             print("DONE")
+
+#     return {
+#         "validation_passed": False,
+#         "attempts": 5,
+#         "generated_code": generated_files,
+#         "validation_errors": diagnostics if 'diagnostics' in locals() else init_output,
+#     }
+
+
 @app.get("/validation")
 async def validation():
-
-    print("validation")
 
     architecture_plan = archi
 
@@ -55,87 +161,173 @@ async def validation():
         architecture_plan=architecture_plan
     )
 
+    validation_run_id = (
+        f"{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
+    )
+
+    print(f"\n🚀 Validation Run Started : {validation_run_id}")
+
     for attempt in range(5):
-        print(f"\n========== Validation Attempt {attempt+1}, ## {attempt} ==========")
 
-        # print(generated_files)
+        workspace = create_workspace(
+            validation_run_id,
+            attempt + 1,
+        )
 
-        
+        log_attempt(
+            run_id=validation_run_id,
+            attempt=attempt + 1,
+            workspace=workspace,
+        )
+
+        # -------------------------------------------------------
+        # Inject fake failures for testing
+        # -------------------------------------------------------
+
         if attempt == 0:
+            log_stage("Injecting fake init failure")
+
             generated_files["main.tf"] = generated_files["main.tf"].replace(
                 "hashicorp/azurerm",
                 "hashicorp/azurer",
             )
+
         elif attempt == 1:
+            log_stage("Injecting fake validation failure")
+
             generated_files["variables.tf"] = ""
 
         elif attempt == 2:
+            log_stage("Injecting fake validation failure")
+
             generated_files["main.tf"] += """
 
-    resource "azurerm_resource_group" "rg_invalid" {
-    name     = "test-rg"
-    location = "Central India"
+resource "azurerm_resource_group" "rg_invalid" {
+  name     = "test-rg"
+  location = "Central India"
 
-    invalid_argument = true
-    }
-    """
-
-
-        
-        workspace = create_workspace(attempt=attempt+1)
+  invalid_argument = true
+}
+"""
 
         try:
-            write_files(workspace, generated_files)
 
-            # TERRAFORM INIT
-            init_code, init_output = await terraform_init(workspace)
+            # -------------------------------------------------------
+            # Write Files
+            # -------------------------------------------------------
+
+            log_stage("Writing Terraform Files")
+
+            write_files(
+                workspace,
+                generated_files,
+            )
+
+            log_success("Terraform files written.")
+
+            # -------------------------------------------------------
+            # Terraform Init
+            # -------------------------------------------------------
+
+            log_stage("terraform init")
+
+            init_code, init_output = await terraform_init(
+                workspace
+            )
+
+            log_output(init_output)
 
             if init_code != 0:
 
+                log_failure("terraform init failed.")
+
                 generated_files = generate_terraform(
                     architecture_plan=architecture_plan,
-                    validation_attempts=attempt+1,
+                    validation_attempts=attempt + 1,
                     validation_stage="init",
                     validation_errors=[
                         {
                             "file": "",
-                            "severify": "error",
-                            "summary": "Terraform Init failed",
+                            "severity": "error",
+                            "summary": "Terraform init failed",
                             "detail": init_output,
                         }
                     ],
-                    previous_code=generated_files
+                    previous_code=generated_files,
                 )
+
+                print("\n🔁 Regenerating Terraform...\n")
 
                 continue
 
-            # TERRAFORM VALIDATE
-            validate_code, validate_output = await terraform_validate(workspace)
-            passed, diagnostics = parse_validation_output(validate_output)
+            log_success("terraform init succeeded.")
 
-            if passed and validate_code==0:
+            # -------------------------------------------------------
+            # Terraform Validate
+            # -------------------------------------------------------
+
+            log_stage("terraform validate")
+
+            validate_code, validate_output = await terraform_validate(
+                workspace
+            )
+
+            log_output(validate_output)
+
+            passed, diagnostics = parse_validation_output(
+                validate_output
+            )
+
+            if passed and validate_code == 0:
+
+                log_success("terraform validate succeeded.")
+
+                print("\n" + "=" * 90)
+                print("🎉 VALIDATION SUCCESSFUL")
+                print("=" * 90)
+
                 return {
                     "validation_passed": True,
-                    "attempts": attempt+1,
-                    "generated_code": generated_files
+                    "attempts": attempt + 1,
+                    "generated_code": generated_files,
                 }
+
+            log_failure("terraform validate failed.")
+
+            if diagnostics:
+                print("\nDiagnostics:")
+                for d in diagnostics:
+                    print(
+                        f"""
+File     : {d.get("file")}
+Severity : {d.get("severity")}
+Summary  : {d.get("summary")}
+Details  : {d.get("detail")}
+""".strip()
+                    )
 
             generated_files = generate_terraform(
                 architecture_plan=architecture_plan,
-                validation_attempts=attempt+1,
+                validation_attempts=attempt + 1,
                 validation_stage="validate",
                 validation_errors=diagnostics,
                 previous_code=generated_files,
             )
-                  
+
+            print("\n🔁 Regenerating Terraform...\n")
+
         finally:
-            print("DONE")
+            print(f"Finished Attempt {attempt + 1}")
+
+    print("\n" + "=" * 90)
+    print("❌ VALIDATION FAILED AFTER MAX RETRIES")
+    print("=" * 90)
 
     return {
         "validation_passed": False,
         "attempts": 5,
         "generated_code": generated_files,
-        "validation_errors": diagnostics if 'diagnostics' in locals() else init_output,
+        "validation_errors": diagnostics if "diagnostics" in locals() else init_output,
     }
 
 

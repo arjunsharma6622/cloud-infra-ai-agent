@@ -5,19 +5,30 @@ import tempfile
 PLAYGROUND_ROOT = Path("playground")
 
 
-def create_workspace(attempt) -> Path:
+def create_workspace(validation_run_id, attempt) -> Path:
     """
     Creates a unique temporary workspace for one validation run.
     """
 
     PLAYGROUND_ROOT.mkdir(exist_ok=True)
 
-    workspace = Path(
-        tempfile.mkdtemp(
-            prefix=f"tf-{attempt}-",
-            dir=PLAYGROUND_ROOT,
-        )
+    workspace = (
+        PLAYGROUND_ROOT
+        / validation_run_id
+        / f"attempt-{attempt}"
     )
+
+    workspace.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    # workspace = Path(
+    #     tempfile.mkdtemp(
+    #         prefix=f"tf-{attempt}-",
+    #         dir=PLAYGROUND_ROOT,
+    #     )
+    # )
 
     return workspace
 

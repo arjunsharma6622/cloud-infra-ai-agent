@@ -42,52 +42,54 @@ VALIDATION_MAX_RETRIES = 5
 
 
 archi = """
-Production Cloud Architecture: Python Web Application (Azure)
-This architecture provides a secure, monitored environment for a Python web application hosted on Azure. It leverages managed identities to eliminate the need for hardcoded database connection strings, ensuring a production-grade security posture.
+Production Architecture: Secure Isolated Environment (Azure)
+This architecture provides a "Zero Trust" isolated environment in the Central India region. By blocking all internet traffic, we rely on Private Link and internal routing to facilitate communication between the application and the database.
 
 1. Architectural Components
-Resource Name	Type	Reasoning
-rg-webapp-prod	Resource Group	Logical container for all project assets.
-appi-webapp-prod	Application Insights	Provides Application Performance Management (APM).
-log-analytics-prod	Log Analytics Workspace	Centralized data sink for Application Insights and resource logs.
-sql-server-prod*	Azure SQL Server	Logical server required to host the SQL database.
-sql-db-prod	Azure SQL Database	Backend persistence layer.
-asp-webapp-prod*	App Service Plan	Compute abstraction for hosting the App Service.
-app-svc-python-prod	App Service (Linux)	Runtime host for the Python web application.
-*Inferred infrastructure components required for successful deployment.
-
-2. Deployment Phases and Dependency Order
-Resources should be deployed in the following order to ensure dependencies (like logging destinations and compute plans) are available before the application and database are created.
-
-Phase 1: Foundation & Monitoring
-Resource Group: rg-webapp-prod
-Log Analytics Workspace: log-analytics-prod
-Application Insights: appi-webapp-prod (Linked to Workspace)
-Phase 2: Data & Compute Infrastructure
-Azure SQL Server: (Required parent for sql-db-prod)
-Azure SQL Database: sql-db-prod
-App Service Plan: asp-webapp-prod (SKU: P1v2)
-Phase 3: Application Runtime
-App Service: app-svc-python-prod
-Configured with System Assigned Managed Identity.
-Enabled for HTTPS Only.
-Diagnostic logging forwarded to log-analytics-prod.
-3. Security & Networking
-Identity: The App Service will utilize a System-Assigned Managed Identity. Grant this identity db_datareader and db_datawriter roles within the Azure SQL Database to avoid credential management.
-HTTPS: Force HTTPS-only traffic at the App Service level.
-Database Access: Firewall rules on the SQL Server will be configured to allow Azure services and resources, with specific IP restrictions for administrative access.
-Diagnostic Logging: All resources will push diagnostic logs to the log-analytics-prod workspace.
-4. Terraform Module Recommendations
-To maintain clean state management and modularity, split the infrastructure into the following blocks:
-
-modules/monitoring: Handles Log Analytics and Application Insights creation.
-modules/database: Manages the SQL Server, SQL Database, and firewall rules.
-modules/compute: Manages the App Service Plan and App Service, including configuration of the Python runtime settings and Managed Identity association.
-5. Architectural Considerations
-Region: All resources reside in eastus to ensure low latency and compliance with the project specification.
-Auto-scaling: Since the App Service Plan (P1v2) is configured, ensure that the Azure Monitor autoscale rules are defined in the infrastructure code to trigger scaling based on CPU or Memory metrics.
-Naming Convention: All resources follow the provided naming pattern (e.g., app-svc-python-prod) to maintain parity with production operations standards.
-Note: This architecture assumes the deployment pipeline handles the assignment of the Managed Identity as the SQL database principal, which is the recommended practice for "infrastructure as code" (IaC) deployments."""
+Resource	Logic/Role
+Virtual Network (VNet)	Foundation for internal connectivity.
+app-subnet / db-subnet	Network segmentation for security boundary.
+NSG (nsg-app)	Enforcement point for "Deny All" ingress/egress policies.
+app-vm	Compute node, hardened with Managed Identity and no Public IP.
+app-pg-db	PostgreSQL Flexible Server, isolated via Private Link.
+Key Vault (kv-secrets)	Centralized secret management, integrated with the VM's identity.
+Log Analytics	Centralized observability for audit and troubleshooting.
+2. Deployment Phases
+Phase 1: Foundational Infrastructure
+Resource Group: Container for all resources.
+Log Analytics Workspace: Deployed early to capture diagnostic logs for subsequent resources.
+Virtual Network: Deploy VNet and subnets.
+Network Security Group (NSG): Deploy with default "Deny All" rules applied to subnets.
+Phase 2: Data & Secrets
+Key Vault: Provisioned with soft-delete enabled.
+PostgreSQL Flexible Server: Provisioned with Private Link integration into the db-subnet.
+Phase 3: Compute & Connectivity
+Virtual Machine: Provisioned with System-Assigned Managed Identity.
+Private Endpoints: Link the Database and Key Vault to the VNet to ensure they are accessible without public internet.
+3. Terraform Module Boundaries
+modules/network: VNet, Subnets, and NSG definitions.
+modules/compute: VM provisioning, identity assignment, and diagnostics settings.
+modules/data: PostgreSQL Flexible Server and Private Link configurations.
+modules/security: Key Vault and access policies.
+modules/monitoring: Log Analytics Workspace configuration.
+4. Security & Networking Implementation
+Traffic Lockdown: The NSG will be configured with:
+DenyInbound: Priority 4096 (Deny All).
+DenyOutbound: Priority 4096 (Deny All).
+Note: To allow communication between the VM and DB, explicit "Allow" rules (priority 100-200) will be added to the NSG subnets restricted to the specific internal IP ranges of the application and the database Private Link interface.
+Identity: The VM uses Managed Identity to authenticate with Key Vault and the PostgreSQL database. No secrets (passwords) will be stored in source code.
+Access: Access to the environment is provided via Azure Bastion (optional recommendation) or private VPN/ExpressRoute, as standard internet access is prohibited.
+5. Dependency-Aware Deployment Order
+Resource Group
+Log Analytics Workspace
+VNet & Subnets
+Network Security Group (Associate with subnets)
+Key Vault
+PostgreSQL Flexible Server (Requires VNet/Subnet)
+Private Endpoints (Requires VNet, Key Vault, and Postgres)
+Virtual Machine (Requires VNet, Key Vault for secret resolution)
+6. Architectural Note: Connectivity
+Since all inbound and outbound traffic is blocked, please be aware that the VM will be unable to reach public repositories (e.g., apt-get updates) or Azure APIs without Private Link configured for those specific services (Key Vault, Azure Monitor, etc.). Ensure your VNet is configured for Azure Private DNS Zones to resolve these internal endpoints."""
 
 
 # TEMP: validation test generated files contnet
