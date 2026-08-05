@@ -11,13 +11,37 @@ class TerraformProject(BaseModel):
 
 
 FORMATTING_RULES = """
-CRITICAL FORMATTING RULES
+==============================
+TERRAFORM FORMATTING RULES
+==============================
 
-- Return valid Terraform HCL.
-- Preserve proper indentation.
-- Do not compress code into one line.
-- Return complete file contents.
-- Do not wrap code in markdown fences.
+You are generating files that will be written DIRECTLY to disk and executed by Terraform.
+
+Follow ALL rules strictly.
+
+1. Every file MUST be valid Terraform HCL.
+
+2. Preserve proper formatting exactly as a human would write in VS Code.
+
+3. Every resource, variable, output, provider, data source, locals block, module block and terraform block MUST start on a NEW LINE.
+
+4. Leave ONE blank line between top-level blocks.
+
+5. Use normal indentation (2 spaces) inside every block.
+
+6. Never compress multiple attributes onto one line.
+
+7. Never return escaped newline characters (\\n).
+
+8. Return actual newline characters.
+
+9. Do NOT minify or compress the code.
+
+10. Do NOT wrap the code inside Markdown code fences.
+
+11. Return ONLY the file contents.
+
+The files must be immediately executable by Terraform without any formatting changes.
 """
 
 
@@ -95,12 +119,16 @@ Requirements:
 - Return complete corrected Terraform files.
 """
 
-        print("prompt with error ===================")
-        print(prompt)
+        # print("prompt with error ===================")
+        # print(prompt)
     result: TerraformProject = structured_llm.invoke(prompt)
 
     return {
-        "main.tf": result.main_tf,
-        "variables.tf": result.variables_tf,
-        "outputs.tf": result.outputs_tf,
+        "generated_code": {
+            "main.tf": result.main_tf,
+            "variables.tf": result.variables_tf,
+            "outputs.tf": result.outputs_tf,
+        },
+        "prompt": prompt,
+        "llm_response": result.model_dump(),
     }

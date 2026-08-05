@@ -26,6 +26,7 @@ from app.tf_validation.logger import (
     log_failure,
     log_output,
 )
+from app.tf_validation.logger import ValidationLogger
 
 
 load_dotenv()
@@ -53,119 +54,29 @@ class ChatRequest(BaseModel):
 db_path = "checkpoints.sqlite"
 
 #  TEMP: for validation node testing
-# @app.get("/validation")
-# async def validation():
-
-#     print("validation")
-
-#     architecture_plan = archi
-
-#     generated_files = generate_terraform(
-#         architecture_plan=architecture_plan
-#     )
-
-#     validation_run_id = (
-#         f"{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
-#     )
-
-#     for attempt in range(5):
-#         print(f"\n========== Validation Attempt {attempt+1}, ## {attempt} ==========")
-
-#         # print(generated_files)
-
-        
-#         if attempt == 0:
-#             generated_files["main.tf"] = generated_files["main.tf"].replace(
-#                 "hashicorp/azurerm",
-#                 "hashicorp/azurer",
-#             )
-#         elif attempt == 1:
-#             generated_files["variables.tf"] = ""
-
-#         elif attempt == 2:
-#             generated_files["main.tf"] += """
-
-#     resource "azurerm_resource_group" "rg_invalid" {
-#     name     = "test-rg"
-#     location = "Central India"
-
-#     invalid_argument = true
-#     }
-#     """
-
-
-#         # workspace = create_workspace(attempt=attempt+1)
-#         workspace = create_workspace(validation_run_id, attempt + 1,)
-
-#         try:
-#             write_files(workspace, generated_files)
-
-#             # TERRAFORM INIT
-#             init_code, init_output = await terraform_init(workspace)
-
-#             if init_code != 0:
-
-#                 generated_files = generate_terraform(
-#                     architecture_plan=architecture_plan,
-#                     validation_attempts=attempt+1,
-#                     validation_stage="init",
-#                     validation_errors=[
-#                         {
-#                             "file": "",
-#                             "severify": "error",
-#                             "summary": "Terraform Init failed",
-#                             "detail": init_output,
-#                         }
-#                     ],
-#                     previous_code=generated_files
-#                 )
-
-#                 continue
-
-#             # TERRAFORM VALIDATE
-#             validate_code, validate_output = await terraform_validate(workspace)
-#             passed, diagnostics = parse_validation_output(validate_output)
-
-#             if passed and validate_code==0:
-#                 return {
-#                     "validation_passed": True,
-#                     "attempts": attempt+1,
-#                     "generated_code": generated_files
-#                 }
-
-#             generated_files = generate_terraform(
-#                 architecture_plan=architecture_plan,
-#                 validation_attempts=attempt+1,
-#                 validation_stage="validate",
-#                 validation_errors=diagnostics,
-#                 previous_code=generated_files,
-#             )
-                  
-#         finally:
-#             print("DONE")
-
-#     return {
-#         "validation_passed": False,
-#         "attempts": 5,
-#         "generated_code": generated_files,
-#         "validation_errors": diagnostics if 'diagnostics' in locals() else init_output,
-#     }
-
 
 @app.get("/validation")
 async def validation():
 
     architecture_plan = archi
 
-    generated_files = generate_terraform(
-        architecture_plan=architecture_plan
-    )
-
     validation_run_id = (
         f"{datetime.now():%Y%m%d-%H%M%S}-{uuid4().hex[:6]}"
     )
 
-    print(f"\n🚀 Validation Run Started : {validation_run_id}")
+    # -------------------------------------------------------
+    # Initial Terraform Generation
+    # -------------------------------------------------------
+
+    generation_result = generate_terraform(
+        architecture_plan=architecture_plan,
+    )
+
+    generated_files = generation_result["generated_code"]
+
+    # -------------------------------------------------------
+    # Validation Loop
+    # -------------------------------------------------------
 
     for attempt in range(5):
 
@@ -174,49 +85,26 @@ async def validation():
             attempt + 1,
         )
 
+        validation_logger = ValidationLogger(workspace)
+
         log_attempt(
-            run_id=validation_run_id,
-            attempt=attempt + 1,
-            workspace=workspace,
+            validation_run_id,
+            attempt + 1,
+            workspace,
         )
 
-        # -------------------------------------------------------
-        # Inject fake failures for testing
-        # -------------------------------------------------------
-
-        if attempt == 0:
-            log_stage("Injecting fake init failure")
-
-            generated_files["main.tf"] = generated_files["main.tf"].replace(
-                "hashicorp/azurerm",
-                "hashicorp/azurer",
-            )
-
-        elif attempt == 1:
-            log_stage("Injecting fake validation failure")
-
-            generated_files["variables.tf"] = ""
-
-        elif attempt == 2:
-            log_stage("Injecting fake validation failure")
-
-            generated_files["main.tf"] += """
-
-resource "azurerm_resource_group" "rg_invalid" {
-  name     = "test-rg"
-  location = "Central India"
-
-  invalid_argument = true
-}
-"""
+        # Save everything that produced THIS attempt
+        validation_logger.save_prompt(
+            generation_result["prompt"]
+        )
 
         try:
 
             # -------------------------------------------------------
-            # Write Files
+            # Write Terraform Files
             # -------------------------------------------------------
 
-            log_stage("Writing Terraform Files")
+            log_stage("Writing Terraform files")
 
             write_files(
                 workspace,
@@ -235,13 +123,24 @@ resource "azurerm_resource_group" "rg_invalid" {
                 workspace
             )
 
-            log_output(init_output)
-
             if init_code != 0:
 
                 log_failure("terraform init failed.")
 
-                generated_files = generate_terraform(
+
+                validation_logger.save_command_output(
+                    command="terraform_init",
+                    return_code=init_code,
+                    output=init_output,
+                )
+
+                validation_logger.save_summary(
+                    attempt=attempt + 1,
+                    stage="terraform_init",
+                    passed=False,
+                )
+
+                generation_result = generate_terraform(
                     architecture_plan=architecture_plan,
                     validation_attempts=attempt + 1,
                     validation_stage="init",
@@ -256,7 +155,7 @@ resource "azurerm_resource_group" "rg_invalid" {
                     previous_code=generated_files,
                 )
 
-                print("\n🔁 Regenerating Terraform...\n")
+                generated_files = generation_result["generated_code"]
 
                 continue
 
@@ -269,22 +168,22 @@ resource "azurerm_resource_group" "rg_invalid" {
             log_stage("terraform validate")
 
             validate_code, validate_output = await terraform_validate(
-                workspace
+                workspace,
             )
 
-            log_output(validate_output)
-
             passed, diagnostics = parse_validation_output(
-                validate_output
+                validate_output,
             )
 
             if passed and validate_code == 0:
 
                 log_success("terraform validate succeeded.")
 
-                print("\n" + "=" * 90)
-                print("🎉 VALIDATION SUCCESSFUL")
-                print("=" * 90)
+                validation_logger.save_summary(
+                    attempt=attempt + 1,
+                    stage="terraform_validate",
+                    passed=True,
+                )
 
                 return {
                     "validation_passed": True,
@@ -294,19 +193,23 @@ resource "azurerm_resource_group" "rg_invalid" {
 
             log_failure("terraform validate failed.")
 
-            if diagnostics:
-                print("\nDiagnostics:")
-                for d in diagnostics:
-                    print(
-                        f"""
-File     : {d.get("file")}
-Severity : {d.get("severity")}
-Summary  : {d.get("summary")}
-Details  : {d.get("detail")}
-""".strip()
-                    )
+            validation_logger.save_command_output(
+                command="terraform_validate",
+                return_code=validate_code,
+                output=validate_output,
+            )
 
-            generated_files = generate_terraform(
+            validation_logger.save_validation_json(
+                diagnostics,
+            )
+
+            validation_logger.save_summary(
+                attempt=attempt + 1,
+                stage="terraform_validate",
+                passed=False,
+            )
+
+            generation_result = generate_terraform(
                 architecture_plan=architecture_plan,
                 validation_attempts=attempt + 1,
                 validation_stage="validate",
@@ -314,20 +217,29 @@ Details  : {d.get("detail")}
                 previous_code=generated_files,
             )
 
-            print("\n🔁 Regenerating Terraform...\n")
+            generated_files = generation_result["generated_code"]
 
         finally:
-            print(f"Finished Attempt {attempt + 1}")
+            print("DONE")
+    # -------------------------------------------------------
+    # Max Retries
+    # -------------------------------------------------------
 
-    print("\n" + "=" * 90)
-    print("❌ VALIDATION FAILED AFTER MAX RETRIES")
-    print("=" * 90)
+    validation_logger.save_summary(
+        attempt=5,
+        stage="max_retries",
+        passed=False,
+    )
 
     return {
         "validation_passed": False,
         "attempts": 5,
         "generated_code": generated_files,
-        "validation_errors": diagnostics if "diagnostics" in locals() else init_output,
+        "validation_errors": (
+            diagnostics
+            if "diagnostics" in locals()
+            else init_output
+        ),
     }
 
 
