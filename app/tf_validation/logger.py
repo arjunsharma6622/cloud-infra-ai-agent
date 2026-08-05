@@ -38,17 +38,19 @@ def log_output(output: str):
 class ValidationLogger:
     def __init__(self, workspace: Path):
         self.workspace = workspace
+        self.logs_dir = workspace / "logs"
+        self.logs_dir.mkdir(exist_ok=True)
 
     # GENERIC HELPERS
 
     def _write_text(self, filename: str, content: str):
-        (self.workspace / filename).write_text(
+        (self.logs_dir / filename).write_text(
             content,
             encoding="utf-8",
         )
 
     def _write_json(self, filename: str, data):
-        (self.workspace / filename).write_text(
+        (self.logs_dir / filename).write_text(
             json.dumps(
                 data,
                 indent=2,
