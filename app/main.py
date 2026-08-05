@@ -10,6 +10,7 @@ from langgraph.types import Command
 from app.database.schema import init_db
 from app.database.chat_repository import ChatRepository
 from app.database.constants import Role, MessageType
+from app.deployment.service import save_generated_code
 
 load_dotenv()
 
@@ -28,6 +29,32 @@ class ChatRequest(BaseModel):
     prompt: str | None = None
 
 db_path = "checkpoints.sqlite"
+from app.deployment.github import trigger_workflow
+
+class DeployRequest(BaseModel):
+
+    deployment_id: str
+
+    confirmation: str
+
+
+@app.post("/deploy")
+
+def deploy(req: DeployRequest):
+
+    if req.confirmation.strip().upper() != "YES":
+
+        return {
+            "status": "cancelled",
+            "message": "Deployment cancelled.",
+        }
+
+    trigger_workflow(req.deployment_id)
+
+    return {
+        "status": "started",
+        "message": "Deployment pipeline started.",
+    }
 
 @app.get("/chats")
 def get_all_chats():
@@ -130,7 +157,14 @@ async def stream_assistant(request: ChatRequest):
 
         # Graph completed
         final_state = compiled_graph.get_state(config).values
-
+        #sample deployment
+        deployment_id = save_generated_code(
+        thread_id,
+        final_state["generated_code"],
+        )
+        print("=" * 50)
+        print("Deployment ID:", deployment_id)
+        print("=" * 50)
         # DB : save final state in db
         chat_repo.save_message(
             thread_id=thread_id, 
@@ -142,6 +176,7 @@ async def stream_assistant(request: ChatRequest):
                     "srs": final_state.get("srs_document"),
                     "architecture": final_state.get("architecture_plan"),
                     "terraform": final_state.get("generated_code"),
+                    "deployment_id":deployment_id
                 }
             ),
             metadata={
