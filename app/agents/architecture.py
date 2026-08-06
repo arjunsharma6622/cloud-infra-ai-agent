@@ -2,14 +2,22 @@ import os
 from langchain_core.messages import SystemMessage, HumanMessage
 from .state import AgentState
 from .prompts import ARCHITECTURE_AGENT_SYSTEM_PROMPT
-from app.llms import get_agent_llm
+from app.llms import get_agent_structured_llm
 from app.config import AgentType
 import json
+from app.schemas import ArchitecturePlan
+from pydantic import BaseModel
+
+class ArchitectureResult(BaseModel):
+    architecture_plan: ArchitecturePlan
 
 def architecture_planner_node(state: AgentState) -> dict:
     print("--- [Agent] Architecture Planner Working ---")
 
-    llm = get_agent_llm(AgentType.ARCHITECTURE)
+    structured_llm = get_agent_structured_llm(
+        AgentType.ARCHITECTURE,
+        ArchitectureResult
+    )
 
     prompt = [
         SystemMessage(content=ARCHITECTURE_AGENT_SYSTEM_PROMPT),
@@ -24,10 +32,10 @@ def architecture_planner_node(state: AgentState) -> dict:
         )
     ]
 
-    response = llm.invoke(prompt)
+    result: ArchitectureResult = structured_llm.invoke(prompt)
 
     return {
-        "architecture_plan": response.text() if hasattr(response, "text") else response.content
+        "architecture_plan": result.architecture_plan
     }
 
 
