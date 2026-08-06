@@ -1,4 +1,5 @@
 from .state import AgentState
+from app.config import VALIDATION_MAX_RETRIES
 
 def route_after_parser(state: AgentState):
     if state.get("clarification_question"):
@@ -6,17 +7,15 @@ def route_after_parser(state: AgentState):
     return "srs_generator"
 
 def route_after_validation(state: AgentState) -> str:
-    # Explicitly check the boolean state
-    if state.get("validation_passed") is True:
-        print("--> Validation passed! Finalizing execution.")
+    if state.get("validation_passed", False):
+        print("--> Validation passed!")
         return "end"
-    
-    # If it failed, send it back to code generator up to 3 times
-    attempts = state.get("validation_attempts", 0)
-    if attempts < 3:
-        print(f"--> Validation failed (Attempt {attempts}). Routing back to IaC Generator.")
-        return "retry"
-    
-    print("--> Max validation attempts reached. Exiting graph.")
-    return "end"
 
+    attempts = state.get("validation_attempts", 0)
+
+    if attempts < VALIDATION_MAX_RETRIES:
+        print(f"--> Validation failed (Attempt {attempts}). Retrying...")
+        return "retry"
+
+    print("--> Maximum validation attempts reached.")
+    return "end"

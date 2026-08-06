@@ -9,6 +9,8 @@ import sqlite3
 from langgraph.checkpoint.sqlite import SqliteSaver
 from .clarification import clarification_node
 from .graph_helper_functions import route_after_parser, route_after_validation
+import aiosqlite
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 workflow = StateGraph(AgentState)
 
@@ -48,8 +50,15 @@ workflow.add_conditional_edges(
 )
 
 
-db_path = "checkpoints.sqlite"
-conn = sqlite3.connect(db_path, check_same_thread=False)
-memory = SqliteSaver(conn)
+# db_path = "checkpoints.sqlite"
+# conn = sqlite3.connect(db_path, check_same_thread=False)
+# memory = SqliteSaver(conn)
 
-compiled_graph = workflow.compile(checkpointer=memory)
+# compiled_graph = workflow.compile(checkpointer=memory)
+
+async def create_graph():
+    conn = await aiosqlite.connect("checkpoints.sqlite")
+
+    memory = AsyncSqliteSaver(conn)
+
+    return workflow.compile(checkpointer=memory)

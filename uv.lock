@@ -46,6 +46,7 @@ name = "backend"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiosqlite" },
     { name = "fastapi" },
     { name = "langchain-google-genai" },
     { name = "langgraph" },
@@ -57,6 +58,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "fastapi", specifier = ">=0.139.1" },
     { name = "langchain-google-genai", specifier = ">=4.2.7" },
     { name = "langgraph", specifier = ">=1.2.9" },
