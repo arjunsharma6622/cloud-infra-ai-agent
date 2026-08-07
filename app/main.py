@@ -29,33 +29,28 @@ class ChatRequest(BaseModel):
     prompt: str | None = None
 
 db_path = "checkpoints.sqlite"
-from app.deployment.github import trigger_workflow
+from app.deployment.github import merge_pull_request
 
 class DeployRequest(BaseModel):
-
-    deployment_id: str
-
+    pr_number: int
     confirmation: str
 
 
 @app.post("/deploy")
-
 def deploy(req: DeployRequest):
 
     if req.confirmation.strip().upper() != "YES":
-
         return {
             "status": "cancelled",
             "message": "Deployment cancelled.",
         }
 
-    trigger_workflow(req.deployment_id)
+    merge_pull_request(req.pr_number)
 
     return {
         "status": "started",
         "message": "Deployment pipeline started.",
     }
-
 @app.get("/chats")
 def get_all_chats():
     try:
@@ -81,14 +76,17 @@ async def stream_assistant(request: ChatRequest):
     thread_id = request.thread_id
     user_prompt = request.prompt
 
-    # DB: create a new proj if dose not exist
-    chat_repo.create_project(thread_id=thread_id, title=f"Proj-{thread_id[:8]}")
+    # DB: create a new proj if does not exist
+    chat_repo.create_project(
+        thread_id=thread_id,
+        title=f"Proj-{thread_id[:8]}"
+    )
 
     # DB : save user prompt in msg
     chat_repo.save_message(
-        thread_id=thread_id, 
-        role=Role.USER, 
-        message_type=MessageType.TEXT, 
+        thread_id=thread_id,
+        role=Role.USER,
+        message_type=MessageType.TEXT,
         content=user_prompt
     )
 
@@ -99,7 +97,7 @@ async def stream_assistant(request: ChatRequest):
         if snapshot.next:
             stream = compiled_graph.stream(
                 Command(resume=request.prompt),
-                config=config,                
+                config=config,
             )
         else:
             initial_state = {
@@ -117,7 +115,7 @@ async def stream_assistant(request: ChatRequest):
             )
 
         for event in stream:
-            
+
             if "__interrupt__" in event:
                 print(event)
 
@@ -155,28 +153,44 @@ async def stream_assistant(request: ChatRequest):
 
             yield json.dumps(safe_event) + "\n"
 
+        # -------------------------------------------------
         # Graph completed
+        # -------------------------------------------------
+
         final_state = compiled_graph.get_state(config).values
-        #sample deployment
-        deployment_id = save_generated_code(
-        thread_id,
-        final_state["generated_code"],
+
+        deployment = save_generated_code(
+            thread_id,
+            final_state["generated_code"],
         )
+
         print("=" * 50)
-        print("Deployment ID:", deployment_id)
+        print("Deployment ID:", deployment["deployment_id"])
+        print("Branch:", deployment["branch_name"])
+        print("PR URL:", deployment["pr_url"])
         print("=" * 50)
+
+        # -----------------------------
+        # NEW: Send deployment metadata
+        # to frontend
+        # -----------------------------
+        yield json.dumps({
+            "type": "deployment",
+            "deployment": deployment
+        }) + "\n"
+
         # DB : save final state in db
         chat_repo.save_message(
-            thread_id=thread_id, 
-            role=Role.ASSISTANT, 
-            message_type=MessageType.FINAL_OUTPUT, 
+            thread_id=thread_id,
+            role=Role.ASSISTANT,
+            message_type=MessageType.FINAL_OUTPUT,
             content=json.dumps(
                 {
                     "project_spec": final_state.get("project_spec"),
                     "srs": final_state.get("srs_document"),
                     "architecture": final_state.get("architecture_plan"),
                     "terraform": final_state.get("generated_code"),
-                    "deployment_id":deployment_id
+                    "deployment": deployment
                 }
             ),
             metadata={
@@ -187,7 +201,6 @@ async def stream_assistant(request: ChatRequest):
         print("EVENT Ended...")
 
     return StreamingResponse(
-        event_generator(), 
+        event_generator(),
         media_type="application/x-ndjson"
     )
-
