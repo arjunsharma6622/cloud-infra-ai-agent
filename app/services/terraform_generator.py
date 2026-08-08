@@ -121,8 +121,6 @@ Requirements:
 - Return complete corrected Terraform files.
 """
 
-        # print("prompt with error ===================")
-        # print(prompt)
     result: TerraformProject = structured_llm.invoke(prompt)
 
     return {
