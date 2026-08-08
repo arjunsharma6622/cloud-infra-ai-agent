@@ -67,12 +67,6 @@ class ValidationLogger:
             prompt
         )
 
-    def save_llm_response(self, response):
-        self._write_json(
-            "llm_response.json",
-            response
-        )
-
     # TERRAFORM
 
     def save_command_output(

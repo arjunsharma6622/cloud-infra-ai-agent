@@ -16,6 +16,9 @@ class AgentState(TypedDict):
     architecture_plan: ArchitecturePlan
     
     generated_code: Dict[str, str]
+    generation_prompt: str
+
+    validation_run_id: str
 
     validation_stage: str
     validation_passed: bool

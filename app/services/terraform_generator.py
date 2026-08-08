@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from app.config import AgentType
 from app.llms import get_agent_structured_llm
 
+from app.schemas import ArchitecturePlan
+
 
 class TerraformProject(BaseModel):
     main_tf: str = Field(description="Complete production-ready main.tf")
@@ -46,7 +48,7 @@ The files must be immediately executable by Terraform without any formatting cha
 
 
 def generate_terraform(
-    architecture_plan: str,
+    architecture_plan: ArchitecturePlan,
     validation_attempts: int = 0,
     validation_stage: str | None = None,
     validation_errors: list[dict] | None = None,
@@ -67,7 +69,7 @@ Generate production-ready Terraform code from the following architecture.
 
 Architecture Plan:
 
-{architecture_plan}
+{architecture_plan.architecture_markdown}
 """
 
     else:
@@ -96,7 +98,7 @@ Your task is to FIX the existing Terraform.
 
 Architecture Plan:
 
-{architecture_plan}
+{architecture_plan.architecture_markdown}
 
 Validation Stage:
 
@@ -129,6 +131,5 @@ Requirements:
             "variables.tf": result.variables_tf,
             "outputs.tf": result.outputs_tf,
         },
-        "prompt": prompt,
-        "llm_response": result.model_dump(),
+        "generation_prompt": prompt,
     }
