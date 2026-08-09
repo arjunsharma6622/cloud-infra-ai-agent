@@ -1,5 +1,5 @@
 from .state import AgentState
-from app.services.terraform_generator import generate_terraform
+from .services.terraform_generator import generate_terraform
 
 
 def iac_generator_node(state: AgentState) -> dict:

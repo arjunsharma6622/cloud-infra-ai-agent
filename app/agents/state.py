@@ -1,6 +1,5 @@
 from typing import TypedDict, Dict, Any, Annotated, Optional
 from langgraph.graph.message import add_messages
-from app.schemas import ArchitecturePlan
 
 class AgentState(TypedDict):
     thread_id: str
@@ -13,7 +12,7 @@ class AgentState(TypedDict):
 
     srs_document: str
 
-    architecture_plan: ArchitecturePlan
+    architecture_plan: Dict[str, any]
     
     generated_code: Dict[str, str]
     generation_prompt: str
