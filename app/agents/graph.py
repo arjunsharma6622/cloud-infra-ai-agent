@@ -3,6 +3,7 @@ from .state import AgentState
 from .parser import intent_parser_node
 from .srs import srs_node
 from .architecture import architecture_planner_node
+from .project_planner import project_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
 from .clarification import clarification_node
@@ -15,6 +16,7 @@ workflow = StateGraph(AgentState)
 workflow.add_node("intent_parser", intent_parser_node)
 workflow.add_node("srs_generator", srs_node)
 workflow.add_node("architecture_planner", architecture_planner_node)
+workflow.add_node("project_planner", project_planner_node)
 workflow.add_node("iac_generator", iac_generator_node)
 workflow.add_node("validation_agent", validation_agent_node)
 workflow.add_node("clarification", clarification_node)
@@ -34,7 +36,15 @@ workflow.add_conditional_edges(
 
 workflow.add_edge("srs_generator", "architecture_planner")
 
-workflow.add_edge("architecture_planner", "iac_generator")
+workflow.add_edge(
+    "architecture_planner",
+    "project_planner",
+)
+
+workflow.add_edge(
+    "project_planner",
+    "iac_generator",
+)
 
 workflow.add_edge("iac_generator", "validation_agent")
 

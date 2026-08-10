@@ -12,7 +12,15 @@ class AgentState(TypedDict):
 
     srs_document: str
 
-    architecture_plan: Dict[str, any]
+    architecture_plan: str
+
+    cloud_provider: str
+
+    terraform_resources: list[str]
+
+    project_plan: Dict[str, Any]
+
+    terraform_docs: Dict[str, any]
     
     generated_code: Dict[str, str]
     generation_prompt: str

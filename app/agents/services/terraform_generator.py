@@ -45,7 +45,7 @@ The files must be immediately executable by Terraform without any formatting cha
 
 
 def generate_terraform(
-    architecture_plan: dict[str, any],
+    architecture_plan: str,
     validation_attempts: int = 0,
     validation_stage: str | None = None,
     validation_errors: list[dict] | None = None,
@@ -66,7 +66,7 @@ Generate production-ready Terraform code from the following architecture.
 
 Architecture Plan:
 
-{architecture_plan["architecture_markdown"]}
+{architecture_plan}
 """
 
     else:
@@ -95,7 +95,7 @@ Your task is to FIX the existing Terraform.
 
 Architecture Plan:
 
-{architecture_plan['architecture_markdown']}
+{architecture_plan}
 
 Validation Stage:
 

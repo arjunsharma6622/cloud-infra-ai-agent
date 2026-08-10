@@ -8,6 +8,8 @@ from app.database.constants import Role, MessageType
 from app.schemas import ChatRequest
 from fastapi.encoders import jsonable_encoder
 
+from app.agents.services.get_tf_docs import get_terraform_docs
+
 chat_repo = ChatRepository()
 
 router = APIRouter()
@@ -72,9 +74,14 @@ async def stream_assistant(
                 "thread_id": request.thread_id,
                 "messages": [HumanMessage(content=request.prompt)],
                 "clarification_question": None,
+
+                "architecture_plan": "",
+                "cloud_provider": "",
+                "terraform_resources": [],
+
                 "validation_attempts": 0,
                 "validation_passed": False,
-                "validation_errors": "",
+                "validation_errors": [],
             }
 
             stream = compiled_graph.astream(
@@ -140,6 +147,8 @@ async def stream_assistant(
                         "project_spec": final_state.get("project_spec"),
                         "srs": final_state.get("srs_document"),
                         "architecture": final_state.get("architecture_plan"),
+                        "cloud_provider": final_state.get("cloud_provider"),
+                        "terraform_resources": final_state.get("terraform_resources"),
                         "terraform": final_state.get("generated_code"),
                     }
                 )
@@ -156,3 +165,34 @@ async def stream_assistant(
         media_type="application/x-ndjson"
     )
 
+
+
+@router.get("/get-resource-docs")
+async def get_resource_docs():
+    resources = [
+    "azurerm_resource_group",
+    "azurerm_virtual_network",
+    "azurerm_subnet",
+    "azurerm_network_security_group",
+    "azurerm_linux_virtual_machine_scale_set",
+    "azurerm_lb",
+    "azurerm_lb_backend_address_pool",
+    "azurerm_lb_probe",
+    "azurerm_lb_rule",
+    "azurerm_postgresql_flexible_server",
+    "azurerm_postgresql_flexible_server_configuration",
+    "azurerm_postgresql_flexible_server_database",
+    "azurerm_bastion_host",
+    "azurerm_key_vault",
+    "azurerm_key_vault_secret",
+    "azurerm_log_analytics_workspace",
+    "azurerm_storage_account",
+    "azurerm_private_endpoint",
+    "azurerm_user_assigned_identity",
+    ]
+    docs = get_terraform_docs(
+        cloud_provider="azurerm",
+        terraform_types=resources
+    )
+
+    return docs

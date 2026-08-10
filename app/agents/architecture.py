@@ -49,6 +49,8 @@ def architecture_planner_node(state: AgentState) -> dict:
     print(result.architecture_plan.terraform_resources)
 
     return {
-        "architecture_plan": result.architecture_plan.model_dump()
+        "architecture_plan": result.architecture_plan.architecture_markdown,
+        "cloud_provider": result.architecture_plan.cloud_provider,
+        "terraform_resources": result.architecture_plan.terraform_resources
     }
 
