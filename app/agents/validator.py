@@ -12,6 +12,7 @@ from .services.tf_validation.runner import (
 
 from .services.tf_validation.parser import (
     parse_validation_output,
+    parse_init_output
 )
 
 from .services.tf_validation.validation_context import ValidationContext
@@ -22,6 +23,8 @@ from .services.tf_validation.logger import (
     log_success,
     log_failure
 )
+
+from .services.common_services import find_affected_units
 
 def assemble_generated_code(
     generated_units: dict[str, dict[str, str]],
@@ -135,7 +138,14 @@ async def validation_agent_node(state: AgentState) -> dict:
 
         init_code, init_output = await terraform_init(workspace)
 
-        if init_code != 0:
+        init_passed, init_diagnostics = parse_init_output(init_output)
+
+        if init_code != 0 or not init_passed:
+            affected_units = find_affected_units(
+                init_diagnostics,
+                state["project_plan"]["generation_units"],
+            )
+
             log_failure("terraform init failed.")
 
             validation_logger.save_command_output(
@@ -154,15 +164,13 @@ async def validation_agent_node(state: AgentState) -> dict:
                 "validation_run_id": validation_run_id,
                 "validation_passed": False,
                 "validation_stage": "init",
-                "validation_errors": [
-                    {
-                        "file": "",
-                        "severity": "error",
-                        "summary": "Terraform init failed",
-                        "detail": init_output,
-                    }
-                ],
+                "validation_errors": init_diagnostics,
+                "units_to_regenerate": affected_units,
+                "current_repair_index": 0,
+                "generation_mode": "repair",
                 "validation_attempts": attempts + 1,
+
+                "generated_code": generated_code
             }
 
         log_success("terraform init succeeded.")
@@ -192,8 +200,16 @@ async def validation_agent_node(state: AgentState) -> dict:
                 "validation_stage": "validate",
                 "validation_errors": [],
                 "validation_attempts": attempts + 1,
+
+                "generated_code": generated_code
             }
 
+
+        affected_units = find_affected_units(
+            diagnostics,
+            state["project_plan"]["generation_units"]
+        )
+        
         log_failure("terraform validate failed.")
 
         validation_logger.save_command_output(
@@ -218,6 +234,12 @@ async def validation_agent_node(state: AgentState) -> dict:
             "validation_stage": "validate",
             "validation_errors": diagnostics,
             "validation_attempts": attempts + 1,
+
+            "units_to_regenerate": affected_units,
+            "generation_mode": "repair",
+            "current_repair_index": 0,
+
+            "generated_code": generated_code
         }
 
     finally:

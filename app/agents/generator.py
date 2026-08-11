@@ -30,13 +30,29 @@ def iac_generator_node(state: AgentState) -> dict:
 
     generation_units = project_plan["generation_units"]
 
-    index = state.get("generation_unit_index", 0)
+    generation_mode = state.get("generation_mode", "initial")
+
+    if generation_mode == "initial":
+        index = state.get("generation_unit_index", 0)
+
+        current_unit = generation_units[index]
+
+    else:
+        repair_index = state.get("current_repair_index", 0)
+
+        units_to_regenerate = state.get("units_to_regenerate", [])
+
+        unit_name = units_to_regenerate[repair_index]
+
+        current_unit = next(
+            unit
+            for unit in generation_units
+            if unit["name"] == unit_name
+        )
 
     # -------------------------------------------------------
     # Determine current generation unit
     # -------------------------------------------------------
-
-    current_unit = generation_units[index]
 
     unit_name = current_unit["name"]
 
@@ -80,7 +96,7 @@ def iac_generator_node(state: AgentState) -> dict:
         generation_unit=current_unit,
         terraform_docs=terraform_docs,
         dependency_context=dependency_context,
-        validation_attempts=state.get("validation_attempts", 0),
+        generation_mode=state.get("generation_mode", "initial"),
         validation_stage=state.get("validation_stage"),
         validation_errors=state.get("validation_errors"),
         previous_code=previous_code,
@@ -97,15 +113,31 @@ def iac_generator_node(state: AgentState) -> dict:
         unit_name: generated_code,
     }
 
-    return {
-        "current_generation_unit": current_unit,
+    if generation_mode == "initial":
 
-        "terraform_docs": terraform_docs,
+        return {
+            "current_generation_unit": current_unit,
 
-        "generated_units": updated_generated_units,
+            "terraform_docs": terraform_docs,
 
-        "generation_prompt": generation_result["generation_prompt"],
+            "generated_units": updated_generated_units,
 
-        # Move to next unit
-        "generation_unit_index": index + 1,
-    }
+            "generation_prompt": generation_result["generation_prompt"],
+
+            # Move to next unit
+            "generation_unit_index": index + 1,
+        }
+
+    else:
+        return {
+            "current_generation_unit": current_unit,
+
+            "terraform_docs": terraform_docs,
+
+            "generated_units": updated_generated_units,
+
+            "generation_prompt": generation_result["generation_prompt"],
+
+            # Move to next unit
+            "current_repair_index": repair_index + 1,
+        }

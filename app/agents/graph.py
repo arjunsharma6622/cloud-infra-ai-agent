@@ -50,7 +50,6 @@ workflow.add_edge(
     "iac_generator",
 )
 
-# workflow.add_edge("iac_generator", "validation_agent")
 workflow.add_conditional_edges(
     "iac_generator",
     route_after_generation,
@@ -65,7 +64,8 @@ workflow.add_conditional_edges(
     route_after_validation,
     {
         "retry": "iac_generator",
-        "end": END
+        "end": END,
+        "blocked": END,
     }
 )
 

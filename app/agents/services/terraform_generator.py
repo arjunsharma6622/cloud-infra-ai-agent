@@ -54,7 +54,7 @@ def generate_terraform(
     generation_unit: dict,
     terraform_docs: dict[str, str],
     dependency_context: dict,
-    validation_attempts: int = 0,
+    generation_mode: str,
     validation_stage: str | None = None,
     validation_errors: list[dict] | None = None,
     previous_code: dict[str, str] | None = None,
@@ -65,7 +65,7 @@ def generate_terraform(
         TerraformUnitProject,
     )
 
-    is_repair = validation_attempts > 0 and previous_code
+    is_repair = generation_mode == "repair"
 
     docs_text = "\n\n".join(
         f"""

@@ -25,8 +25,6 @@ class AgentState(TypedDict):
     current_generation_unit: dict | None
     generation_unit_index: int
 
-    terraform_docs: Dict[str, Any]
-
     # Latest generated code for each unit
     generated_units: Dict[str, Dict[str, str]]
 
@@ -36,8 +34,12 @@ class AgentState(TypedDict):
     # Prompt used for the current generation
     generation_prompt: str
 
+    generation_mode: str
+
     # Validation / repair
     units_to_regenerate: list[str]
+
+    current_repair_index: int
 
     validation_run_id: str
     validation_stage: str
