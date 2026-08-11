@@ -19,3 +19,12 @@ def route_after_validation(state: AgentState) -> str:
 
     print("--> Maximum validation attempts reached.")
     return "end"
+
+def route_after_generation(state: AgentState) -> str:
+    generation_units = state["project_plan"]["generation_units"]
+    current_index = state.get("generation_unit_index", 0)
+
+    if current_index < len(generation_units):
+        return "next_unit"
+
+    return "validation"

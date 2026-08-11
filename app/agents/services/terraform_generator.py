@@ -3,10 +3,14 @@ from pydantic import BaseModel, Field
 from app.config import AgentType
 from app.llms import get_agent_structured_llm
 
-class TerraformProject(BaseModel):
-    main_tf: str = Field(description="Complete production-ready main.tf")
-    variables_tf: str = Field(description="Complete variables.tf")
-    outputs_tf: str = Field(description="Complete outputs.tf")
+class TerraformUnitProject(BaseModel):
+    files: dict[str, str] = Field(
+        description=(
+            "Complete Terraform files for this generation unit. "
+            "Keys are file paths relative to the generation unit path. "
+            "Values are the complete file contents."
+        )
+    )
 
 
 FORMATTING_RULES = """
@@ -44,87 +48,195 @@ The files must be immediately executable by Terraform without any formatting cha
 """
 
 
+
 def generate_terraform(
     architecture_plan: str,
+    generation_unit: dict,
+    terraform_docs: dict[str, str],
+    dependency_context: dict,
     validation_attempts: int = 0,
     validation_stage: str | None = None,
     validation_errors: list[dict] | None = None,
     previous_code: dict[str, str] | None = None,
-) -> dict[str, str]:
+) -> dict:
 
     structured_llm = get_agent_structured_llm(
         AgentType.GENERATOR,
-        TerraformProject,
+        TerraformUnitProject,
     )
 
-    if validation_attempts == 0:
+    is_repair = validation_attempts > 0 and previous_code
 
-        prompt = f"""
-{FORMATTING_RULES}
+    docs_text = "\n\n".join(
+        f"""
+        ========================================
+        TERRAFORM DOCUMENTATION
+        Resource Type: {resource_type}
+        ========================================
 
-Generate production-ready Terraform code from the following architecture.
+        {content}
+        """
+                for resource_type, content in terraform_docs.items()
+            )
 
-Architecture Plan:
+    dependency_text = "\n\n".join(
+        f"""
+        ========================================
+        DEPENDENCY: {unit_name}
+        ========================================
 
-{architecture_plan}
-"""
+        {context}
+        """
+        for unit_name, context in dependency_context.items()
+    )
 
-    else:
-
+    if is_repair:
         diagnostics = "\n".join(
             f"""
-File: {d.get("file", "")}
-Severity: {d.get("severity", "")}
-Summary: {d.get("summary", "")}
-Details: {d.get("detail", "")}
-"""
+            File: {d.get("file", "")}
+            Severity: {d.get("severity", "")}
+            Summary: {d.get("summary", "")}
+            Details: {d.get("detail", "")}
+            """
             for d in (validation_errors or [])
+        )
+
+        previous_files = "\n\n".join(
+            f"""
+            ========================================
+            PREVIOUS FILE: {file_path}
+            ========================================
+
+            {content}
+            """
+            for file_path, content in previous_code.items()
         )
 
         prompt = f"""
 {FORMATTING_RULES}
 
-The previous Terraform failed during:
+You are repairing ONE Terraform generation unit.
 
-Validation Stage : {validation_stage}
+The Terraform project was validated and the current generation unit
+contains one or more validation errors.
 
-Below are the diagnostics.
-Fix every issue.
+Your task is to regenerate the COMPLETE CURRENT GENERATION UNIT.
 
-Your task is to FIX the existing Terraform.
+Do not regenerate the entire Terraform project.
 
-Architecture Plan:
+========================================
+ARCHITECTURE
+========================================
 
 {architecture_plan}
 
-Validation Stage:
+========================================
+CURRENT GENERATION UNIT
+========================================
+
+{generation_unit}
+
+========================================
+LATEST DEPENDENCY CONTEXT
+========================================
+
+{dependency_text}
+
+========================================
+TERRAFORM DOCUMENTATION
+========================================
+
+{docs_text}
+
+========================================
+VALIDATION STAGE
+========================================
 
 {validation_stage}
 
-Validation Diagnostics:
+========================================
+VALIDATION DIAGNOSTICS
+========================================
 
 {diagnostics}
 
-Previous Terraform:
+========================================
+PREVIOUS CURRENT-UNIT CODE
+========================================
 
-{previous_code}
+{previous_files}
 
-Requirements:
+========================================
+REPAIR REQUIREMENTS
+========================================
 
-- Fix ONLY the reported issues.
-- Preserve the architecture.
+- Fix the reported validation issues.
+- Regenerate the COMPLETE current generation unit.
+- Preserve the generation unit's purpose.
+- Preserve its required inputs.
+- Preserve its required outputs.
+- Preserve its resource assignments.
 - Preserve naming conventions.
-- Do not remove resources unless required.
-- Return complete corrected Terraform files.
+- Preserve compatibility with the latest dependency context.
+- Do not modify unrelated generation units.
+- Do not invent new infrastructure requirements.
+- Do not remove resources unless required to fix the validation issue.
 """
 
-    result: TerraformProject = structured_llm.invoke(prompt)
+    else:
+        prompt = f"""
+{FORMATTING_RULES}
+
+You are generating ONE Terraform generation unit.
+
+Generate the complete Terraform implementation for the CURRENT
+generation unit described below.
+
+========================================
+ARCHITECTURE
+========================================
+
+{architecture_plan}
+
+========================================
+CURRENT GENERATION UNIT
+========================================
+
+{generation_unit}
+
+========================================
+LATEST DEPENDENCY CONTEXT
+========================================
+
+{dependency_text}
+
+========================================
+TERRAFORM DOCUMENTATION
+========================================
+
+{docs_text}
+
+========================================
+GENERATION REQUIREMENTS
+========================================
+
+- Generate ONLY this generation unit.
+- Generate every file specified by the generation unit.
+- Implement every Terraform resource assigned to this unit.
+- Follow the input requirements exactly.
+- Produce every required output.
+- Make the outputs usable by dependent units.
+- Use the Terraform documentation as the authoritative source for
+  resource arguments and syntax.
+- Do not invent resources that are not part of the architecture.
+- Do not generate resources belonging to another generation unit.
+- Make the generated unit internally consistent.
+- Make the generated unit compatible with its dependencies.
+"""
+
+    result: TerraformUnitProject = structured_llm.invoke(prompt)
 
     return {
-        "generated_code": {
-            "main.tf": result.main_tf,
-            "variables.tf": result.variables_tf,
-            "outputs.tf": result.outputs_tf,
-        },
+        "generated_code": result.files,
         "generation_prompt": prompt,
     }

@@ -7,7 +7,11 @@ from .project_planner import project_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
 from .clarification import clarification_node
-from .graph_helper_functions import route_after_parser, route_after_validation
+from .graph_helper_functions import (
+    route_after_parser, 
+    route_after_validation, 
+    route_after_generation
+)
 import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
@@ -46,7 +50,15 @@ workflow.add_edge(
     "iac_generator",
 )
 
-workflow.add_edge("iac_generator", "validation_agent")
+# workflow.add_edge("iac_generator", "validation_agent")
+workflow.add_conditional_edges(
+    "iac_generator",
+    route_after_generation,
+    {
+        "next_unit": "iac_generator",
+        "validation": "validation_agent",
+    },
+)
 
 workflow.add_conditional_edges(
     "validation_agent",

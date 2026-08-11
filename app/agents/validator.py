@@ -23,12 +23,65 @@ from .services.tf_validation.logger import (
     log_failure
 )
 
+def assemble_generated_code(
+    generated_units: dict[str, dict[str, str]],
+    generation_units: list[dict],
+) -> dict[str, str]:
+    """
+    Flatten all generation-unit files into a single project file map.
+
+    Example:
+
+    {
+        "network": {
+            "main.tf": "...",
+        },
+        "compute": {
+            "main.tf": "...",
+        }
+    }
+
+    becomes:
+
+    {
+        "modules/network/main.tf": "...",
+        "modules/compute/main.tf": "..."
+    }
+    """
+
+    project_files = {}
+
+    for unit in generation_units:
+
+        unit_name = unit["name"]
+        unit_path = unit["path"]
+
+        unit_files = generated_units.get(unit_name, {})
+
+        for filename, content in unit_files.items():
+
+            if unit_path in ("", "."):
+                file_path = filename
+            else:
+                file_path = f"{unit_path.rstrip('/')}/{filename}"
+
+            project_files[file_path] = content
+
+    return project_files
+
 
 async def validation_agent_node(state: AgentState) -> dict:
     print("--- [Agent] Validation Agent Working ---")
 
     attempts = state.get("validation_attempts", 0)
-    generated_code = state["generated_code"]
+    # generated_code = state["generated_code"]
+    generated_units = state.get("generated_units", {})
+    generation_units = state["project_plan"]["generation_units"]
+
+    generated_code = assemble_generated_code(
+        generated_units,
+        generation_units,
+    )
 
     validation_ctx = ValidationContext.from_state(state)
 
