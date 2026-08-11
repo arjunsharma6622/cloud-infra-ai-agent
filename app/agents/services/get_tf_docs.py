@@ -61,18 +61,18 @@ def get_terraform_docs(
         )
 
         if not doc_path.exists():
-            print(
-                f"[Docs] Documentation not found: "
-                f"{terraform_type}"
-            )
+            # print(
+            #     f"[Docs] Documentation not found: "
+            #     f"{terraform_type}"
+            # )
             continue
 
         docs[terraform_type] = doc_path.read_text(
             encoding="utf-8"
         )
 
-        print(
-            f"[Docs] Loaded: {terraform_type}"
-        )
+        # print(
+        #     f"[Docs] Loaded: {terraform_type}"
+        # )
 
     return docs

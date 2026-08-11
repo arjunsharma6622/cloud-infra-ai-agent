@@ -95,13 +95,14 @@ async def terraform_init(
 ) -> tuple[int, str]:
     """
     Runs:
-        terraform init -backend=false -input=false
+        terraform init -json -backend=false -input=false
     """
 
     return await _run(
         [
             "terraform",
             "init",
+            "-json",
             "-backend=false",
             "-input=false",
             "-no-color"
