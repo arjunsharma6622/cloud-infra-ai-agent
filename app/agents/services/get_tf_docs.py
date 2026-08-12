@@ -1,6 +1,9 @@
 import os
 from pathlib import Path
 
+DOCS_PATH = os.getenv("TERRAFORM_DOCS_PATH")
+
+print(f"PATH is - {DOCS_PATH}")
 
 DOCS_ROOT = Path(os.getenv("TERRAFORM_DOCS_PATH"))
 
