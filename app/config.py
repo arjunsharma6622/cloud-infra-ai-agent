@@ -33,6 +33,10 @@ MODEL_CONFIG = {
         "provider": LLMProvider.GEMINI,
         "model": os.getenv("PLANNER_MODEL", DEFAULT_MODEL),
     },
+    "guardrail": {
+        "provider": LLMProvider.GEMINI,
+        "model": os.getenv("GUARDRAIL_MODEL_NAME", DEFAULT_MODEL),
+    }
 }
 
 class AgentType(str, Enum):
@@ -42,6 +46,7 @@ class AgentType(str, Enum):
     GENERATOR = "generator"
     VALIDATOR = "validator"
     PLANNER = "planner"
+    GUARDRAIL="guardrail"
 
 VALIDATION_MAX_RETRIES = 5
 

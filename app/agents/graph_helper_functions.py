@@ -6,6 +6,12 @@ def route_after_parser(state: AgentState):
         return "clarification"
     return "srs_generator"
 
+def route_after_guardrail(state: AgentState):
+    print(state["isCompliant"])
+    if state["isCompliant"]:
+        return "intent_parser"
+    return "end"
+
 def route_after_validation(state: AgentState) -> str:
     if state.get("validation_passed", False):
         return "end"

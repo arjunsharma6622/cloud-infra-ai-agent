@@ -46,3 +46,6 @@ class AgentState(TypedDict):
     validation_passed: bool
     validation_errors: list[dict[str, str]]
     validation_attempts: int
+
+    isCompliant:bool
+    guardrailMessage:str
