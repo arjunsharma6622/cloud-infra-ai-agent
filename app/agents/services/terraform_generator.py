@@ -6,9 +6,21 @@ from app.llms import get_agent_structured_llm
 class TerraformUnitProject(BaseModel):
     files: dict[str, str] = Field(
         description=(
-            "Complete Terraform files for this generation unit. "
-            "Keys are file paths relative to the generation unit path. "
-            "Values are the complete file contents."
+            "Terraform files for ONLY this generation unit. "
+            "The dictionary keys MUST be paths relative to the generation "
+            "unit directory.\n\n"
+            "Examples of VALID keys:\n"
+            "- main.tf\n"
+            "- variables.tf\n"
+            "- outputs.tf\n"
+            "- templates/example.json\n\n"
+            "Examples of INVALID keys:\n"
+            "- modules/network/main.tf\n"
+            "- modules/network/variables.tf\n"
+            "- ./modules/network/main.tf\n"
+            "- /modules/network/main.tf\n"
+            "- ../main.tf\n\n"
+            "NEVER include the generation unit's directory/path in the key."
         )
     )
 
