@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 
 
-DOCS_ROOT = Path("/Users/arjunsharma/Desktop/terraform-docs")
+DOCS_ROOT = Path(os.getenv("TERRAFORM_DOCS_PATH"))
 
 
 PROVIDER_CONFIG = {
