@@ -46,3 +46,13 @@ class AgentState(TypedDict):
     validation_passed: bool
     validation_errors: list[dict[str, str]]
     validation_attempts: int
+
+    # Devops / Repo
+    repository_config: Dict[str, Any]
+    git_branch: str
+    git_commit_id: str
+    pull_request_url: str
+    pull_request_id: str
+    deployment_status: str
+    deployment_error: str | None
+    

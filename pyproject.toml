@@ -11,6 +11,7 @@ dependencies = [
     "langgraph>=1.2.9",
     "langgraph-checkpoint-sqlite>=3.1.0",
     "pydantic>=2.13.4",
+    "pygithub>=2.9.1",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.51.0",
 ]

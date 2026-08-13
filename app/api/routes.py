@@ -197,6 +197,17 @@ async def stream_assistant(
                 "validation_passed": False,
                 "validation_errors": [],
                 "validation_attempts": 0,
+
+                # ----------------------------
+                # Devops
+                # ----------------------------
+
+                "repository_config": {
+                    "provider": "github",
+                    "owner": "arjunsharma6622",
+                    "repository": "cloud-infra-ai-agent-devops-test-repo",
+                    "target_branch": "dev",
+                },
             }
 
             stream = compiled_graph.astream(

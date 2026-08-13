@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Dict
 
 # class ProjectPlan(BaseModel):
 
@@ -6,3 +7,9 @@ from pydantic import BaseModel
 class ChatRequest(BaseModel):
     thread_id: str
     prompt: str | None = None
+
+class GitHubPRTestRequest(BaseModel):
+    owner: str
+    repository: str
+    target_branch: str = "dev"
+    files: Dict[str, str]

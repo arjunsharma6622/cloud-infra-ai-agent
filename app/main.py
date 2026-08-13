@@ -7,10 +7,12 @@ from app.agents.graph import create_graph
 from app.database.schema import init_db
 import shutil
 from app.api.routes import router as api_router
+from app.api.devops import router as devops_router
 
 app = FastAPI(title="Infra AI Agent")
 
 app.include_router(api_router)
+app.include_router(devops_router)
 
 @app.on_event("startup")
 async def startup():

@@ -6,6 +6,7 @@ from .architecture import architecture_planner_node
 from .project_planner import project_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
+from .devops_node import devops_node
 from .clarification import clarification_node
 from .graph_helper_functions import (
     route_after_parser, 
@@ -23,6 +24,7 @@ workflow.add_node("architecture_planner", architecture_planner_node)
 workflow.add_node("project_planner", project_planner_node)
 workflow.add_node("iac_generator", iac_generator_node)
 workflow.add_node("validation_agent", validation_agent_node)
+workflow.add_node("devops", devops_node)
 workflow.add_node("clarification", clarification_node)
 
 workflow.set_entry_point("intent_parser")
@@ -64,10 +66,13 @@ workflow.add_conditional_edges(
     route_after_validation,
     {
         "retry": "iac_generator",
+        "devops": "devops",
         "end": END,
         "blocked": END,
-    }
+    },
 )
+
+workflow.add_edge("devops", END)
 
 async def create_graph():
     conn = await aiosqlite.connect("checkpoints.sqlite")
