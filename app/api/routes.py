@@ -11,11 +11,24 @@ from app.database.chat_repository import ChatRepository
 from app.database.constants import Role, MessageType
 from app.schemas import ChatRequest
 
+#sample deployments
+from app.deployment.service import save_generated_code
+from app.deployment.github import merge_pull_request
+
 
 chat_repo = ChatRepository()
 
 router = APIRouter()
+#sample deployments
 
+from pydantic import BaseModel
+
+
+class DeployRequest(BaseModel):
+
+    pr_number: int
+
+    confirmation: str
 
 # ============================================================
 # GET ALL CHATS
@@ -362,7 +375,18 @@ async def stream_assistant(
                 config
             )
         ).values
+        #sample dweployemnts
+        # ----------------------------------------------------
+# Create GitHub deployment
+# ----------------------------------------------------
 
+        deployment = save_generated_code(
+         thread_id,
+        final_state.get(
+        "generated_code",
+        {},
+        ),
+        )
         # ----------------------------------------------------
         # Build FINAL output
         # ----------------------------------------------------
@@ -403,6 +427,7 @@ async def stream_assistant(
                 "generated_code",
                 {},
             ),
+            "deployment": deployment,
         }
 
         # ----------------------------------------------------
@@ -449,3 +474,42 @@ async def stream_assistant(
         event_generator(),
         media_type="application/x-ndjson",
     )
+
+@router.post(
+    "/deploy",
+    tags=["Deployment"],
+)
+def deploy(req: DeployRequest):
+
+    if (
+        req.confirmation
+        .strip()
+        .upper()
+        != "YES"
+    ):
+
+        return {
+            "status": "cancelled",
+            "message": "Deployment cancelled.",
+        }
+
+    try:
+
+        result = merge_pull_request(
+            req.pr_number
+        )
+
+        return {
+            "status": "started",
+            "message": (
+                "Deployment pipeline started."
+            ),
+            "github": result,
+        }
+
+    except Exception as e:
+
+        raise HTTPException(
+            status_code=500,
+            detail=str(e),
+        )
