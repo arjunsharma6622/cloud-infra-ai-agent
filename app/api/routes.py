@@ -414,6 +414,16 @@ async def stream_assistant(
                 "generated_code",
                 {},
             ),
+
+            # DevOps
+            "git_branch": final_state.get("git_branch", ""),
+            "git_commit_id": final_state.get("git_commit_id", ""),
+            "pull_request_url": final_state.get("pull_request_url", ""),
+            "pull_request_id": final_state.get("pull_request_id"),
+            "deployment_status": final_state.get(
+                "deployment_status",
+                "",
+            ),
         }
 
         # ----------------------------------------------------

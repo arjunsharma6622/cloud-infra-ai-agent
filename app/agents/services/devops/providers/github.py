@@ -209,4 +209,43 @@ class GitHubProvider(GitProvider):
             "id": pull_request.number,
             "url": pull_request.html_url,
         }
-    
+
+    async def create_repository(
+        self,
+        repository_name: str,
+        description: str,
+        private: bool = True,
+    ) -> dict:
+
+        return await asyncio.to_thread(
+            self._create_repository,
+            repository_name,
+            description,
+            private,
+        )
+
+
+    def _create_repository(
+        self,
+        repository_name: str,
+        description: str,
+        private: bool,
+    ) -> dict:
+
+        user = self.github.get_user()
+
+        repo = user.create_repo(
+            name=repository_name,
+            description=description,
+            private=private,
+            auto_init=True,
+        )
+
+        return {
+            "name": repo.name,
+            "full_name": repo.full_name,
+            "url": repo.html_url,
+            "clone_url": repo.clone_url,
+            "default_branch": repo.default_branch,
+        }  
+

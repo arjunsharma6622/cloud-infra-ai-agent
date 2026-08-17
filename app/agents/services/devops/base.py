@@ -35,3 +35,12 @@ class GitProvider(ABC):
         description: str
     ) -> dict:
         pass
+
+    @abstractmethod
+    async def create_repository(
+        self,
+        repository_name: str,
+        description: str,
+        private: bool = True,
+    ) -> dict:
+        pass
