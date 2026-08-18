@@ -1,3 +1,479 @@
+# from fastapi import APIRouter, Request, Depends, HTTPException
+# import json
+
+# from fastapi.responses import StreamingResponse
+# from fastapi.encoders import jsonable_encoder
+
+# from langchain_core.messages import HumanMessage
+# from langgraph.types import Command
+
+# from app.database.chat_repository import ChatRepository
+# from app.database.constants import Role, MessageType
+# from app.schemas import ChatRequest
+
+
+# chat_repo = ChatRepository()
+
+# router = APIRouter()
+
+
+# # ============================================================
+# # GET ALL CHATS
+# # ============================================================
+
+# @router.get("/chats", tags=["Chat"])
+# def get_all_chats():
+
+#     try:
+#         projects = chat_repo.list_projects()
+
+#         return {
+#             "threads": projects
+#         }
+
+#     except Exception:
+#         return {
+#             "threads": []
+#         }
+
+
+# # ============================================================
+# # GET CHAT HISTORY
+# # ============================================================
+
+# @router.get("/chat/{thread_id}/history", tags=["Chat"])
+# def get_chat_history(thread_id: str):
+
+#     messages = chat_repo.get_messages(thread_id)
+
+#     return {
+#         "messages": messages
+#     }
+
+
+# # ============================================================
+# # LANGGRAPH DEPENDENCY
+# # ============================================================
+
+# def get_graph(request: Request):
+
+#     graph = getattr(
+#         request.app.state,
+#         "compiled_graph",
+#         None,
+#     )
+
+#     if graph is None:
+#         raise HTTPException(
+#             status_code=500,
+#             detail="LangGraph engine not initialized",
+#         )
+
+#     return graph
+
+
+# # ============================================================
+# # STREAM
+# # ============================================================
+
+# @router.post("/stream", tags=["Agent Stream"])
+# async def stream_assistant(
+#     request: ChatRequest,
+#     compiled_graph=Depends(get_graph),
+# ):
+
+#     config = {
+#         "configurable": {
+#             "thread_id": request.thread_id
+#         }
+#     }
+
+#     thread_id = request.thread_id
+#     user_prompt = request.prompt
+
+#     # --------------------------------------------------------
+#     # Create project if it does not exist
+#     # --------------------------------------------------------
+
+#     chat_repo.create_project(
+#         thread_id=thread_id,
+#         title=f"Proj-{thread_id[:8]}",
+#     )
+
+#     # --------------------------------------------------------
+#     # Save user message
+#     # --------------------------------------------------------
+
+#     chat_repo.save_message(
+#         thread_id=thread_id,
+#         role=Role.USER,
+#         message_type=MessageType.TEXT,
+#         content=user_prompt,
+#     )
+
+#     # --------------------------------------------------------
+#     # Check whether this is a new execution or a resume
+#     # --------------------------------------------------------
+
+#     snapshot = await compiled_graph.aget_state(config)
+
+#     async def event_generator():
+
+#         # ====================================================
+#         # START / RESUME GRAPH
+#         # ====================================================
+
+#         if snapshot.next:
+
+#             # Existing interrupted graph
+#             stream = compiled_graph.astream(
+#                 Command(resume=user_prompt),
+#                 config=config,
+#             )
+
+#         else:
+
+#             # New graph execution
+#             initial_state = {
+
+#                 "thread_id": thread_id,
+                
+#                 "messages": [
+#                     HumanMessage(
+#                         content=user_prompt
+#                     )
+#                 ],
+
+#                  # NEW
+#                 "chat_name": "",
+#                 "clarification_question": None,
+
+#                 # ----------------------------
+#                 # Requirements
+#                 # ----------------------------
+
+#                 "project_spec": {},
+#                 "srs_document": "",
+
+#                 # ----------------------------
+#                 # Architecture
+#                 # ----------------------------
+
+#                 "architecture_plan": "",
+#                 "cloud_provider": "",
+#                 "terraform_resources": [],
+
+#                 # ----------------------------
+#                 # Project Planning
+#                 # ----------------------------
+
+#                 "project_plan": {},
+
+#                 # ----------------------------
+#                 # Generation
+#                 # ----------------------------
+
+#                 "current_generation_unit": None,
+#                 "generation_unit_index": 0,
+
+#                 "generated_units": {},
+#                 "generated_code": {},
+
+#                 "generation_prompt": "",
+
+#                 "generation_mode": "initial",
+
+#                 # ----------------------------
+#                 # Repair
+#                 # ----------------------------
+
+#                 "units_to_regenerate": [],
+#                 "current_repair_index": 0,
+
+#                 # ----------------------------
+#                 # Validation
+#                 # ----------------------------
+
+#                 "validation_run_id": "",
+#                 "validation_stage": "",
+#                 "validation_passed": False,
+#                 "validation_errors": [],
+#                 "validation_attempts": 0,
+
+#                 # ----------------------------
+#                 # Devops
+#                 # ----------------------------
+
+#                 "repository_config": {
+#                     "provider": "github",
+#                     "owner": "VanamaTharunKumar",
+#                     "repository": "cloud-infra-deployments",
+#                     "target_branch": "dev",
+#                 },
+#             }
+
+#             stream = compiled_graph.astream(
+#                 initial_state,
+#                 config=config,
+#             )
+
+#         # ====================================================
+#         # STATUS STATE
+#         # ====================================================
+
+#         generation_started = False
+#         validation_started = False
+
+#         # ====================================================
+#         # PROCESS GRAPH EVENTS
+#         # ====================================================
+
+#         async for event in stream:
+
+#             # ------------------------------------------------
+#             # CLARIFICATION INTERRUPT
+#             # ------------------------------------------------
+
+#             if "__interrupt__" in event:
+
+#                 interrupt = event[
+#                     "__interrupt__"
+#                 ][0]
+
+#                 clarifying_question = (
+#                     interrupt.value
+#                 )
+
+#                 chat_repo.save_message(
+#                     thread_id=thread_id,
+#                     role=Role.ASSISTANT,
+#                     message_type=MessageType.CLARIFICATION,
+#                     content=clarifying_question,
+#                 )
+
+#                 yield json.dumps({
+#                     "type": "interrupt",
+#                     "message": clarifying_question,
+#                 }) + "\n"
+
+#                 return
+
+#             # ------------------------------------------------
+#             # INTENT PARSER
+#             # ------------------------------------------------
+
+#             if "intent_parser" in event:
+
+#                 yield json.dumps({
+#                     "type": "status",
+#                     "status": "parsing",
+#                     "message": "🧠 Parsing requirements...",
+#                 }) + "\n"
+
+#             # ------------------------------------------------
+#             # SRS
+#             # ------------------------------------------------
+
+#             elif "srs_generator" in event:
+
+#                 yield json.dumps({
+#                     "type": "status",
+#                     "status": "generating_srs",
+#                     "message": "📝 Generating SRS...",
+#                 }) + "\n"
+
+#             # ------------------------------------------------
+#             # ARCHITECTURE
+#             # ------------------------------------------------
+
+#             elif "architecture_planner" in event:
+
+#                 yield json.dumps({
+#                     "type": "status",
+#                     "status": "designing_architecture",
+#                     "message": "🏗️ Designing architecture...",
+#                 }) + "\n"
+
+#             # ------------------------------------------------
+#             # PROJECT PLANNER
+#             # ------------------------------------------------
+
+#             elif "project_planner" in event:
+
+#                 yield json.dumps({
+#                     "type": "status",
+#                     "status": "planning_terraform",
+#                     "message": "📐 Planning Terraform project...",
+#                 }) + "\n"
+
+#             # ------------------------------------------------
+#             # TERRAFORM GENERATION
+#             # ------------------------------------------------
+
+#             elif "iac_generator" in event:
+
+#                 # The generator may run many times because
+#                 # generation is unit-by-unit and may also run
+#                 # during repair.
+#                 #
+#                 # Frontend should only know that Terraform
+#                 # generation has started.
+
+#                 if not generation_started:
+
+#                     generation_started = True
+
+#                     yield json.dumps({
+#                         "type": "status",
+#                         "status": "generating_terraform",
+#                         "message": "💻 Generating Terraform...",
+#                     }) + "\n"
+
+#             # ------------------------------------------------
+#             # VALIDATION
+#             # ------------------------------------------------
+
+#             elif "validation_agent" in event:
+
+#                 validator = event[
+#                     "validation_agent"
+#                 ]
+
+#                 validation_passed = validator.get(
+#                     "validation_passed",
+#                     False,
+#                 )
+
+#                 # First validation / subsequent validation
+#                 # runs are intentionally hidden from frontend.
+
+#                 if validation_passed:
+
+#                     yield json.dumps({
+#                         "type": "status",
+#                         "status": "validated",
+#                         "message": "✅ Terraform validation passed.",
+#                     }) + "\n"
+
+#                 else:
+
+#                     yield json.dumps({
+#                         "type": "status",
+#                         "status": "validation_failed",
+#                         "message": (
+#                             "⚠️ Terraform validation failed. "
+#                             "Repairing and validating again..."
+#                         ),
+#                     }) + "\n"
+
+#         # ====================================================
+#         # GRAPH COMPLETED
+#         # ====================================================
+
+#         final_state = (
+#             await compiled_graph.aget_state(
+#                 config
+#             )
+#         ).values
+
+#         # ----------------------------------------------------
+#         # Build FINAL output
+#         # ----------------------------------------------------
+
+#         final_output = {
+
+#             "project_spec": final_state.get(
+#                 "project_spec",
+#                 {},
+#             ),
+
+#             "srs": final_state.get(
+#                 "srs_document",
+#                 "",
+#             ),
+
+#             "architecture": final_state.get(
+#                 "architecture_plan",
+#                 "",
+#             ),
+
+#             "cloud_provider": final_state.get(
+#                 "cloud_provider",
+#                 "",
+#             ),
+
+#             "terraform_resources": final_state.get(
+#                 "terraform_resources",
+#                 [],
+#             ),
+
+#             "project_plan": final_state.get(
+#                 "project_plan",
+#                 {},
+#             ),
+
+#             "terraform": final_state.get(
+#                 "generated_code",
+#                 {},
+#             ),
+
+#             # DevOps
+#             "git_branch": final_state.get("git_branch", ""),
+#             "git_commit_id": final_state.get("git_commit_id", ""),
+#             "pull_request_url": final_state.get("pull_request_url", ""),
+#             "pull_request_id": final_state.get("pull_request_id"),
+#             "deployment_status": final_state.get(
+#                 "deployment_status",
+#                 "",
+#             ),
+#         }
+
+#         # ----------------------------------------------------
+#         # Save ONLY final output to chat DB
+#         # ----------------------------------------------------
+
+#         chat_repo.save_message(
+#             thread_id=thread_id,
+#             role=Role.ASSISTANT,
+#             message_type=MessageType.FINAL_OUTPUT,
+#             content=json.dumps(
+#                 jsonable_encoder(
+#                     final_output
+#                 )
+#             ),
+#             metadata={
+#                 "agent": "graph_complete",
+#             },
+#         )
+
+#         # ----------------------------------------------------
+#         # Send final output to frontend
+#         # ----------------------------------------------------
+
+#         success = final_state.get(
+#             "validation_passed",
+#             False,
+#         )
+
+#         yield json.dumps(
+#             {
+#                 "type": "complete",
+#                 "success": success,
+#                 "output": jsonable_encoder(
+#                     final_output
+#                 ),
+#             }
+#         ) + "\n"
+
+#         print("EVENT Ended...")
+
+
+#     return StreamingResponse(
+#         event_generator(),
+#         media_type="application/x-ndjson",
+#     )
+
+
 from fastapi import APIRouter, Request, Depends, HTTPException
 import json
 
@@ -25,6 +501,7 @@ router = APIRouter()
 def get_all_chats():
 
     try:
+
         projects = chat_repo.list_projects()
 
         return {
@@ -32,6 +509,7 @@ def get_all_chats():
         }
 
     except Exception:
+
         return {
             "threads": []
         }
@@ -41,10 +519,15 @@ def get_all_chats():
 # GET CHAT HISTORY
 # ============================================================
 
-@router.get("/chat/{thread_id}/history", tags=["Chat"])
+@router.get(
+    "/chat/{thread_id}/history",
+    tags=["Chat"]
+)
 def get_chat_history(thread_id: str):
 
-    messages = chat_repo.get_messages(thread_id)
+    messages = chat_repo.get_messages(
+        thread_id
+    )
 
     return {
         "messages": messages
@@ -64,6 +547,7 @@ def get_graph(request: Request):
     )
 
     if graph is None:
+
         raise HTTPException(
             status_code=500,
             detail="LangGraph engine not initialized",
@@ -76,7 +560,10 @@ def get_graph(request: Request):
 # STREAM
 # ============================================================
 
-@router.post("/stream", tags=["Agent Stream"])
+@router.post(
+    "/stream",
+    tags=["Agent Stream"]
+)
 async def stream_assistant(
     request: ChatRequest,
     compiled_graph=Depends(get_graph),
@@ -91,18 +578,54 @@ async def stream_assistant(
     thread_id = request.thread_id
     user_prompt = request.prompt
 
-    # --------------------------------------------------------
-    # Create project if it does not exist
-    # --------------------------------------------------------
 
-    chat_repo.create_project(
-        thread_id=thread_id,
-        title=f"Proj-{thread_id[:8]}",
-    )
+    # ========================================================
+    # CHECK WHETHER PROJECT ALREADY EXISTS
+    # ========================================================
 
-    # --------------------------------------------------------
-    # Save user message
-    # --------------------------------------------------------
+    existing_projects = chat_repo.list_projects()
+
+    existing_project = None
+
+    for project in existing_projects:
+
+        if project["thread_id"] == thread_id:
+
+            existing_project = project
+            break
+
+
+    is_new_chat = existing_project is None
+
+
+    # ========================================================
+    # CREATE PROJECT IF IT DOES NOT EXIST
+    # ========================================================
+
+    if is_new_chat:
+
+        chat_repo.create_project(
+            thread_id=thread_id,
+            title=f"Proj-{thread_id[:8]}",
+        )
+
+        print("\n================================")
+        print("NEW CHAT CREATED")
+        print("Thread ID:", thread_id)
+        print("================================\n")
+
+    else:
+
+        print("\n================================")
+        print("EXISTING CHAT")
+        print("Thread ID:", thread_id)
+        print("Current Title:", existing_project["title"])
+        print("================================\n")
+
+
+    # ========================================================
+    # SAVE USER MESSAGE
+    # ========================================================
 
     chat_repo.save_message(
         thread_id=thread_id,
@@ -111,11 +634,15 @@ async def stream_assistant(
         content=user_prompt,
     )
 
-    # --------------------------------------------------------
-    # Check whether this is a new execution or a resume
-    # --------------------------------------------------------
 
-    snapshot = await compiled_graph.aget_state(config)
+    # ========================================================
+    # CHECK WHETHER THIS IS A NEW EXECUTION OR RESUME
+    # ========================================================
+
+    snapshot = await compiled_graph.aget_state(
+        config
+    )
+
 
     async def event_generator():
 
@@ -125,7 +652,10 @@ async def stream_assistant(
 
         if snapshot.next:
 
+            # ------------------------------------------------
             # Existing interrupted graph
+            # ------------------------------------------------
+
             stream = compiled_graph.astream(
                 Command(resume=user_prompt),
                 config=config,
@@ -133,7 +663,10 @@ async def stream_assistant(
 
         else:
 
+            # ------------------------------------------------
             # New graph execution
+            # ------------------------------------------------
+
             initial_state = {
 
                 "thread_id": thread_id,
@@ -144,83 +677,123 @@ async def stream_assistant(
                     )
                 ],
 
+                # =================================================
+                # CHAT NAME
+                # =================================================
+
+                "chat_name": "",
+
+
+                # =================================================
+                # CLARIFICATION
+                # =================================================
+
                 "clarification_question": None,
 
-                # ----------------------------
-                # Requirements
-                # ----------------------------
+
+                # =================================================
+                # REQUIREMENTS
+                # =================================================
 
                 "project_spec": {},
+
                 "srs_document": "",
 
-                # ----------------------------
-                # Architecture
-                # ----------------------------
+
+                # =================================================
+                # ARCHITECTURE
+                # =================================================
 
                 "architecture_plan": "",
+
                 "cloud_provider": "",
+
                 "terraform_resources": [],
 
-                # ----------------------------
-                # Project Planning
-                # ----------------------------
+
+                # =================================================
+                # PROJECT PLANNING
+                # =================================================
 
                 "project_plan": {},
 
-                # ----------------------------
-                # Generation
-                # ----------------------------
+
+                # =================================================
+                # GENERATION
+                # =================================================
 
                 "current_generation_unit": None,
+
                 "generation_unit_index": 0,
 
                 "generated_units": {},
+
                 "generated_code": {},
 
                 "generation_prompt": "",
 
                 "generation_mode": "initial",
 
-                # ----------------------------
-                # Repair
-                # ----------------------------
+
+                # =================================================
+                # REPAIR
+                # =================================================
 
                 "units_to_regenerate": [],
+
                 "current_repair_index": 0,
 
-                # ----------------------------
-                # Validation
-                # ----------------------------
+
+                # =================================================
+                # VALIDATION
+                # =================================================
 
                 "validation_run_id": "",
+
                 "validation_stage": "",
+
                 "validation_passed": False,
+
                 "validation_errors": [],
+
                 "validation_attempts": 0,
 
-                # ----------------------------
-                # Devops
-                # ----------------------------
+
+                # =================================================
+                # DEVOPS
+                # =================================================
 
                 "repository_config": {
+
                     "provider": "github",
-                    "owner": "arjunsharma6622",
-                    "repository": "cloud-infra-ai-agent-devops-test-repo",
+
+                    "owner": "VanamaTharunKumar",
+
+                    "repository": "cloud-infra-deployments",
+
                     "target_branch": "dev",
                 },
             }
+
+
+            # ------------------------------------------------
+            # Run graph
+            # ------------------------------------------------
 
             stream = compiled_graph.astream(
                 initial_state,
                 config=config,
             )
 
+
         # ====================================================
-        # STATUS STATE
+        # STATUS FLAGS
         # ====================================================
 
         generation_started = False
+
         validation_started = False
+
 
         # ====================================================
         # PROCESS GRAPH EVENTS
@@ -228,9 +801,56 @@ async def stream_assistant(
 
         async for event in stream:
 
-            # ------------------------------------------------
+
+            # =================================================
+            # CHAT NAME GENERATOR
+            # =================================================
+
+            if "chat_name_generator" in event:
+
+                chat_name_state = event[
+                    "chat_name_generator"
+                ]
+
+                chat_name = chat_name_state.get(
+                    "chat_name",
+                    ""
+                )
+
+                if chat_name:
+
+                    print("\n================================")
+                    print("GENERATED CHAT NAME")
+                    print("================================")
+                    print(chat_name)
+                    print("================================\n")
+
+
+                    # -----------------------------------------
+                    # Save chat name to database
+                    # -----------------------------------------
+
+                    chat_repo.update_project_title(
+                        thread_id=thread_id,
+                        title=chat_name
+                    )
+
+
+                    # -----------------------------------------
+                    # Send chat name to API client
+                    # -----------------------------------------
+
+                    yield json.dumps(
+                        {
+                            "type": "chat_name",
+                            "chat_name": chat_name,
+                        }
+                    ) + "\n"
+
+
+            # =================================================
             # CLARIFICATION INTERRUPT
-            # ------------------------------------------------
+            # =================================================
 
             if "__interrupt__" in event:
 
@@ -249,87 +869,102 @@ async def stream_assistant(
                     content=clarifying_question,
                 )
 
-                yield json.dumps({
-                    "type": "interrupt",
-                    "message": clarifying_question,
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "type": "interrupt",
+                        "message": clarifying_question,
+                    }
+                ) + "\n"
 
                 return
 
-            # ------------------------------------------------
+
+            # =================================================
             # INTENT PARSER
-            # ------------------------------------------------
+            # =================================================
 
             if "intent_parser" in event:
 
-                yield json.dumps({
-                    "type": "status",
-                    "status": "parsing",
-                    "message": "🧠 Parsing requirements...",
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "type": "status",
+                        "status": "parsing",
+                        "message": "🧠 Parsing requirements...",
+                    }
+                ) + "\n"
 
-            # ------------------------------------------------
+
+            # =================================================
             # SRS
-            # ------------------------------------------------
+            # =================================================
 
             elif "srs_generator" in event:
 
-                yield json.dumps({
-                    "type": "status",
-                    "status": "generating_srs",
-                    "message": "📝 Generating SRS...",
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "type": "status",
+                        "status": "generating_srs",
+                        "message": "📝 Generating SRS...",
+                    }
+                ) + "\n"
 
-            # ------------------------------------------------
+
+            # =================================================
             # ARCHITECTURE
-            # ------------------------------------------------
+            # =================================================
 
             elif "architecture_planner" in event:
 
-                yield json.dumps({
-                    "type": "status",
-                    "status": "designing_architecture",
-                    "message": "🏗️ Designing architecture...",
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "type": "status",
+                        "status": "designing_architecture",
+                        "message": "🏗️ Designing architecture...",
+                    }
+                ) + "\n"
 
-            # ------------------------------------------------
+
+            # =================================================
             # PROJECT PLANNER
-            # ------------------------------------------------
+            # =================================================
 
             elif "project_planner" in event:
 
-                yield json.dumps({
-                    "type": "status",
-                    "status": "planning_terraform",
-                    "message": "📐 Planning Terraform project...",
-                }) + "\n"
+                yield json.dumps(
+                    {
+                        "type": "status",
+                        "status": "planning_terraform",
+                        "message": "📐 Planning Terraform project...",
+                    }
+                ) + "\n"
 
-            # ------------------------------------------------
+
+            # =================================================
             # TERRAFORM GENERATION
-            # ------------------------------------------------
+            # =================================================
 
             elif "iac_generator" in event:
 
-                # The generator may run many times because
-                # generation is unit-by-unit and may also run
-                # during repair.
-                #
-                # Frontend should only know that Terraform
-                # generation has started.
+                # The generator may run multiple times
+                # because generation is unit-by-unit
+                # and may also run during repair.
 
                 if not generation_started:
 
                     generation_started = True
 
-                    yield json.dumps({
-                        "type": "status",
-                        "status": "generating_terraform",
-                        "message": "💻 Generating Terraform...",
-                    }) + "\n"
+                    yield json.dumps(
+                        {
+                            "type": "status",
+                            "status": "generating_terraform",
+                            "message": "💻 Generating Terraform...",
+                        }
+                    ) + "\n"
 
-            # ------------------------------------------------
+
+            # =================================================
             # VALIDATION
-            # ------------------------------------------------
+            # =================================================
 
             elif "validation_agent" in event:
 
@@ -342,27 +977,33 @@ async def stream_assistant(
                     False,
                 )
 
-                # First validation / subsequent validation
-                # runs are intentionally hidden from frontend.
 
                 if validation_passed:
 
-                    yield json.dumps({
-                        "type": "status",
-                        "status": "validated",
-                        "message": "✅ Terraform validation passed.",
-                    }) + "\n"
+                    yield json.dumps(
+                        {
+                            "type": "status",
+                            "status": "validated",
+                            "message": (
+                                "✅ Terraform validation passed."
+                            ),
+                        }
+                    ) + "\n"
+
 
                 else:
 
-                    yield json.dumps({
-                        "type": "status",
-                        "status": "validation_failed",
-                        "message": (
-                            "⚠️ Terraform validation failed. "
-                            "Repairing and validating again..."
-                        ),
-                    }) + "\n"
+                    yield json.dumps(
+                        {
+                            "type": "status",
+                            "status": "validation_failed",
+                            "message": (
+                                "⚠️ Terraform validation failed. "
+                                "Repairing and validating again..."
+                            ),
+                        }
+                    ) + "\n"
+
 
         # ====================================================
         # GRAPH COMPLETED
@@ -374,97 +1015,201 @@ async def stream_assistant(
             )
         ).values
 
-        # ----------------------------------------------------
-        # Build FINAL output
-        # ----------------------------------------------------
+
+        # ====================================================
+        # GET CHAT NAME
+        # ====================================================
+
+        chat_name = final_state.get(
+            "chat_name",
+            ""
+        )
+
+
+        # ====================================================
+        # PRINT FINAL CHAT NAME
+        # ====================================================
+
+        print("\n================================")
+        print("FINAL CHAT NAME")
+        print("================================")
+        print(chat_name)
+        print("================================\n")
+
+
+        # ====================================================
+        # SAVE CHAT NAME
+        # ====================================================
+
+        if chat_name:
+
+            chat_repo.update_project_title(
+                thread_id=thread_id,
+                title=chat_name
+            )
+
+
+        # ====================================================
+        # BUILD FINAL OUTPUT
+        # ====================================================
 
         final_output = {
+
+            # ------------------------------------------------
+            # Chat
+            # ------------------------------------------------
+
+            "chat_name": chat_name,
+
+
+            # ------------------------------------------------
+            # Requirements
+            # ------------------------------------------------
 
             "project_spec": final_state.get(
                 "project_spec",
                 {},
             ),
 
+
             "srs": final_state.get(
                 "srs_document",
                 "",
             ),
+
+
+            # ------------------------------------------------
+            # Architecture
+            # ------------------------------------------------
 
             "architecture": final_state.get(
                 "architecture_plan",
                 "",
             ),
 
+
             "cloud_provider": final_state.get(
                 "cloud_provider",
                 "",
             ),
+
 
             "terraform_resources": final_state.get(
                 "terraform_resources",
                 [],
             ),
 
+
+            # ------------------------------------------------
+            # Project Plan
+            # ------------------------------------------------
+
             "project_plan": final_state.get(
                 "project_plan",
                 {},
             ),
+
+
+            # ------------------------------------------------
+            # Terraform
+            # ------------------------------------------------
 
             "terraform": final_state.get(
                 "generated_code",
                 {},
             ),
 
+
+            # ------------------------------------------------
             # DevOps
-            "git_branch": final_state.get("git_branch", ""),
-            "git_commit_id": final_state.get("git_commit_id", ""),
-            "pull_request_url": final_state.get("pull_request_url", ""),
-            "pull_request_id": final_state.get("pull_request_id"),
+            # ------------------------------------------------
+
+            "git_branch": final_state.get(
+                "git_branch",
+                ""
+            ),
+
+
+            "git_commit_id": final_state.get(
+                "git_commit_id",
+                ""
+            ),
+
+
+            "pull_request_url": final_state.get(
+                "pull_request_url",
+                ""
+            ),
+
+
+            "pull_request_id": final_state.get(
+                "pull_request_id"
+            ),
+
+
             "deployment_status": final_state.get(
                 "deployment_status",
                 "",
             ),
         }
 
-        # ----------------------------------------------------
-        # Save ONLY final output to chat DB
-        # ----------------------------------------------------
+
+        # ====================================================
+        # SAVE ONLY FINAL OUTPUT TO CHAT DB
+        # ====================================================
 
         chat_repo.save_message(
             thread_id=thread_id,
+
             role=Role.ASSISTANT,
+
             message_type=MessageType.FINAL_OUTPUT,
+
             content=json.dumps(
                 jsonable_encoder(
                     final_output
                 )
             ),
+
             metadata={
                 "agent": "graph_complete",
             },
         )
 
-        # ----------------------------------------------------
-        # Send final output to frontend
-        # ----------------------------------------------------
+
+        # ====================================================
+        # FINAL SUCCESS STATUS
+        # ====================================================
 
         success = final_state.get(
             "validation_passed",
             False,
         )
 
+
+        # ====================================================
+        # SEND FINAL OUTPUT
+        # ====================================================
+
         yield json.dumps(
             {
                 "type": "complete",
+
                 "success": success,
+
                 "output": jsonable_encoder(
                     final_output
                 ),
             }
         ) + "\n"
 
+
         print("EVENT Ended...")
 
+
+    # ========================================================
+    # RETURN STREAM
+    # ========================================================
 
     return StreamingResponse(
         event_generator(),

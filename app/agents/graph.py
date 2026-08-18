@@ -1,5 +1,91 @@
+# from langgraph.graph import StateGraph, END
+# from .state import AgentState
+# from .parser import intent_parser_node
+# from .srs import srs_node
+# from .architecture import architecture_planner_node
+# from .project_planner import project_planner_node
+# from .generator import iac_generator_node
+# from .validator import validation_agent_node
+# from .devops_node import devops_node
+# from .clarification import clarification_node
+# from .chat_name_generator import chat_name_generator_node
+# from .graph_helper_functions import (
+#     route_after_parser, 
+#     route_after_validation, 
+#     route_after_generation
+# )
+# import aiosqlite
+# from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+# workflow = StateGraph(AgentState)
+
+# workflow.add_node("chat_name_generator", chat_name_generator_node)
+# workflow.add_node("intent_parser", intent_parser_node)
+# workflow.add_node("srs_generator", srs_node)
+# workflow.add_node("architecture_planner", architecture_planner_node)
+# workflow.add_node("project_planner", project_planner_node)
+# workflow.add_node("iac_generator", iac_generator_node)
+# workflow.add_node("validation_agent", validation_agent_node)
+# workflow.add_node("devops", devops_node)
+# workflow.add_node("clarification", clarification_node)
+
+# workflow.set_entry_point("intent_parser")
+
+# workflow.add_edge("clarification", "intent_parser")
+
+# workflow.add_conditional_edges(
+#     "intent_parser",
+#     route_after_parser,
+#     {
+#         "clarification": "clarification",
+#         "srs_generator": "srs_generator",
+#     },
+# )
+
+# workflow.add_edge("srs_generator", "architecture_planner")
+
+# workflow.add_edge(
+#     "architecture_planner",
+#     "project_planner",
+# )
+
+# workflow.add_edge(
+#     "project_planner",
+#     "iac_generator",
+# )
+
+# workflow.add_conditional_edges(
+#     "iac_generator",
+#     route_after_generation,
+#     {
+#         "next_unit": "iac_generator",
+#         "validation": "validation_agent",
+#     },
+# )
+
+# workflow.add_conditional_edges(
+#     "validation_agent",
+#     route_after_validation,
+#     {
+#         "retry": "iac_generator",
+#         "devops": "devops",
+#         "end": END,
+#         "blocked": END,
+#     },
+# )
+
+# workflow.add_edge("devops", END)
+
+# async def create_graph():
+#     conn = await aiosqlite.connect("checkpoints.sqlite")
+
+#     memory = AsyncSqliteSaver(conn)
+
+#     return workflow.compile(checkpointer=memory)
 from langgraph.graph import StateGraph, END
+
 from .state import AgentState
+
 from .parser import intent_parser_node
 from .srs import srs_node
 from .architecture import architecture_planner_node
@@ -8,28 +94,108 @@ from .generator import iac_generator_node
 from .validator import validation_agent_node
 from .devops_node import devops_node
 from .clarification import clarification_node
+
+# NEW: Chat name generator
+from .chat_name_generator import chat_name_generator_node
+
 from .graph_helper_functions import (
-    route_after_parser, 
-    route_after_validation, 
+    route_after_parser,
+    route_after_validation,
     route_after_generation
 )
+
 import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+
 workflow = StateGraph(AgentState)
 
-workflow.add_node("intent_parser", intent_parser_node)
-workflow.add_node("srs_generator", srs_node)
-workflow.add_node("architecture_planner", architecture_planner_node)
-workflow.add_node("project_planner", project_planner_node)
-workflow.add_node("iac_generator", iac_generator_node)
-workflow.add_node("validation_agent", validation_agent_node)
-workflow.add_node("devops", devops_node)
-workflow.add_node("clarification", clarification_node)
 
-workflow.set_entry_point("intent_parser")
+# ---------------------------------------------------------
+# Nodes
+# ---------------------------------------------------------
 
-workflow.add_edge("clarification", "intent_parser")
+workflow.add_node(
+    "intent_parser",
+    intent_parser_node
+)
+
+workflow.add_node(
+    "srs_generator",
+    srs_node
+)
+
+workflow.add_node(
+    "architecture_planner",
+    architecture_planner_node
+)
+
+workflow.add_node(
+    "project_planner",
+    project_planner_node
+)
+
+workflow.add_node(
+    "iac_generator",
+    iac_generator_node
+)
+
+workflow.add_node(
+    "validation_agent",
+    validation_agent_node
+)
+
+workflow.add_node(
+    "devops",
+    devops_node
+)
+
+workflow.add_node(
+    "clarification",
+    clarification_node
+)
+
+# NEW: Chat name generator
+workflow.add_node(
+    "chat_name_generator",
+    chat_name_generator_node
+)
+
+
+# ---------------------------------------------------------
+# Entry Point
+# ---------------------------------------------------------
+
+# NEW CHAT FLOW
+workflow.set_entry_point("chat_name_generator")
+
+
+# ---------------------------------------------------------
+# Chat Name Generator → Intent Parser
+# ---------------------------------------------------------
+
+# After generating the chat name,
+# continue with your existing workflow.
+
+workflow.add_edge(
+    "chat_name_generator",
+    "intent_parser"
+)
+
+
+# ---------------------------------------------------------
+# Clarification → Intent Parser
+# ---------------------------------------------------------
+
+workflow.add_edge(
+    "clarification",
+    "intent_parser"
+)
+
+
+# ---------------------------------------------------------
+# Intent Parser Routing
+# ---------------------------------------------------------
 
 workflow.add_conditional_edges(
     "intent_parser",
@@ -40,17 +206,40 @@ workflow.add_conditional_edges(
     },
 )
 
-workflow.add_edge("srs_generator", "architecture_planner")
+
+# ---------------------------------------------------------
+# SRS → Architecture
+# ---------------------------------------------------------
+
+workflow.add_edge(
+    "srs_generator",
+    "architecture_planner"
+)
+
+
+# ---------------------------------------------------------
+# Architecture → Project Planner
+# ---------------------------------------------------------
 
 workflow.add_edge(
     "architecture_planner",
-    "project_planner",
+    "project_planner"
 )
+
+
+# ---------------------------------------------------------
+# Project Planner → IaC Generator
+# ---------------------------------------------------------
 
 workflow.add_edge(
     "project_planner",
-    "iac_generator",
+    "iac_generator"
 )
+
+
+# ---------------------------------------------------------
+# IaC Generator Routing
+# ---------------------------------------------------------
 
 workflow.add_conditional_edges(
     "iac_generator",
@@ -60,6 +249,11 @@ workflow.add_conditional_edges(
         "validation": "validation_agent",
     },
 )
+
+
+# ---------------------------------------------------------
+# Validation Routing
+# ---------------------------------------------------------
 
 workflow.add_conditional_edges(
     "validation_agent",
@@ -72,11 +266,29 @@ workflow.add_conditional_edges(
     },
 )
 
-workflow.add_edge("devops", END)
+
+# ---------------------------------------------------------
+# DevOps → END
+# ---------------------------------------------------------
+
+workflow.add_edge(
+    "devops",
+    END
+)
+
+
+# ---------------------------------------------------------
+# Create Graph with SQLite Checkpointer
+# ---------------------------------------------------------
 
 async def create_graph():
-    conn = await aiosqlite.connect("checkpoints.sqlite")
+
+    conn = await aiosqlite.connect(
+        "checkpoints.sqlite"
+    )
 
     memory = AsyncSqliteSaver(conn)
 
-    return workflow.compile(checkpointer=memory)
+    return workflow.compile(
+        checkpointer=memory
+    )

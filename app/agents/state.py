@@ -56,3 +56,5 @@ class AgentState(TypedDict):
     deployment_status: str
     deployment_error: str | None
     
+    # Automatically generated chat name
+    chat_name: str
