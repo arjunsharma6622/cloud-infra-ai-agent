@@ -37,9 +37,9 @@ class GitProvider(ABC):
         pass
 
     @abstractmethod
-    async def create_repository(
+    async def create_repo(
         self,
-        repository_name: str,
+        repo_name: str,
         description: str,
         private: bool = True,
     ) -> dict:

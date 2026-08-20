@@ -1,19 +1,25 @@
 from .base import GitProvider
 from .providers.github import GitHubProvider
 
-def get_git_provider(
-    config: dict
-) -> GitProvider:
+def get_git_provider(config) -> GitProvider:
 
-    provider = config["provider"]
+    provider_name = config["provider"]
 
-    if provider == "github":
+    if provider_name == "github":
 
-        return GitHubProvider(
-            owner=config["owner"],
-            repository=config["repository"]
+        provider = GitHubProvider(
+            owner=config["owner"]
         )
 
+        # Repository is optional because the repository
+        # may not exist yet during bootstrap.
+        repo = config.get("repo")
+
+        if repo:
+            provider.use_repo(repo)
+
+        return provider
+
     raise ValueError(
-        f"Unsupported Git provider: {provider}"
+        f"Unsupported git provider: {provider_name}"
     )

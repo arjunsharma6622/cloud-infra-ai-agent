@@ -48,7 +48,7 @@ class AgentState(TypedDict):
     validation_attempts: int
 
     # Devops / Repo
-    repository_config: Dict[str, Any]
+    repo_config: Dict[str, Any]
     git_branch: str
     git_commit_id: str
     pull_request_url: str

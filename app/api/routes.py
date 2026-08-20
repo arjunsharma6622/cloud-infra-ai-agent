@@ -202,11 +202,9 @@ async def stream_assistant(
                 # Devops
                 # ----------------------------
 
-                "repository_config": {
+                "repo_config": {
                     "provider": "github",
-                    "owner": "arjunsharma6622",
-                    "repository": "cloud-infra-ai-agent-devops-test-repo",
-                    "target_branch": "dev",
+                    "owner": "arjunsharma6622"
                 },
             }
 

@@ -1,5 +1,6 @@
 import os
 import asyncio
+from pathlib import Path
 
 from github import Github, Auth, InputGitTreeElement
 
@@ -11,7 +12,6 @@ class GitHubProvider(GitProvider):
     def __init__(
         self,
         owner: str,
-        repository: str,
     ):
         token = os.getenv("GITHUB_TOKEN")
 
@@ -24,9 +24,21 @@ class GitHubProvider(GitProvider):
             auth=Auth.Token(token)
         )
 
+        self.owner = owner
+
+        self.repo = None
+
+    # use repo methods
+    def use_repo(self, repo_name: str):
         self.repo = self.github.get_repo(
-            f"{owner}/{repository}"
+            f"{self.owner}/{repo_name}"
         )
+
+    def _require_repo(self):
+        if self.repo is None:
+            raise RuntimeError("Repo has not been initialized.")
+
+        return self.repo
 
     # ==================================================
     # Branch SHA
@@ -47,7 +59,9 @@ class GitHubProvider(GitProvider):
         branch_name: str,
     ) -> str:
 
-        branch = self.repo.get_branch(
+        repo = self._require_repo()
+
+        branch = repo.get_branch(
             branch_name
         )
 
@@ -75,7 +89,9 @@ class GitHubProvider(GitProvider):
         base_sha: str,
     ) -> None:
 
-        self.repo.create_git_ref(
+        repo = self._require_repo()
+
+        repo.create_git_ref(
             ref=f"refs/heads/{branch_name}",
             sha=base_sha,
         )
@@ -108,12 +124,13 @@ class GitHubProvider(GitProvider):
         # ------------------------------------------
         # Current branch HEAD
         # ------------------------------------------
+        repo = self._require_repo()
 
-        branch = self.repo.get_branch(
+        branch = repo.get_branch(
             branch_name
         )
 
-        parent_commit = self.repo.get_git_commit(
+        parent_commit = repo.get_git_commit(
             branch.commit.sha
         )
 
@@ -125,14 +142,21 @@ class GitHubProvider(GitProvider):
 
         for file_path, content in files.items():
 
-            blob = self.repo.create_git_blob(
+            normalized_path = file_path.lstrip("/")
+
+            if ".." in Path(normalized_path).parts:
+                raise ValueError(
+                    f"Invalid repo path: {file_path}"
+                )
+
+            blob = repo.create_git_blob(
                 content=content,
                 encoding="utf-8",
             )
 
             tree_elements.append(
                 InputGitTreeElement(
-                    path=file_path.lstrip("/"),
+                    path=normalized_path,
                     mode="100644",
                     type="blob",
                     sha=blob.sha,
@@ -143,7 +167,7 @@ class GitHubProvider(GitProvider):
         # Create Git tree
         # ------------------------------------------
 
-        tree = self.repo.create_git_tree(
+        tree = repo.create_git_tree(
             tree_elements,
             base_tree=parent_commit.tree,
         )
@@ -152,7 +176,7 @@ class GitHubProvider(GitProvider):
         # Create commit
         # ------------------------------------------
 
-        commit = self.repo.create_git_commit(
+        commit = repo.create_git_commit(
             message=commit_message,
             tree=tree,
             parents=[parent_commit],
@@ -162,7 +186,7 @@ class GitHubProvider(GitProvider):
         # Move branch to new commit
         # ------------------------------------------
 
-        ref = self.repo.get_git_ref(
+        ref = repo.get_git_ref(
             f"heads/{branch_name}"
         )
 
@@ -198,7 +222,9 @@ class GitHubProvider(GitProvider):
         description: str,
     ) -> dict:
 
-        pull_request = self.repo.create_pull(
+        repo = self._require_repo()
+
+        pull_request = repo.create_pull(
             title=title,
             body=description,
             head=source_branch,
@@ -210,16 +236,16 @@ class GitHubProvider(GitProvider):
             "url": pull_request.html_url,
         }
 
-    async def create_repository(
+    async def create_repo(
         self,
-        repository_name: str,
+        repo_name: str,
         description: str,
         private: bool = True,
     ) -> dict:
 
         return await asyncio.to_thread(
             self._create_repository,
-            repository_name,
+            repo_name,
             description,
             private,
         )
@@ -227,7 +253,7 @@ class GitHubProvider(GitProvider):
 
     def _create_repository(
         self,
-        repository_name: str,
+        repo_name: str,
         description: str,
         private: bool,
     ) -> dict:
@@ -235,11 +261,17 @@ class GitHubProvider(GitProvider):
         user = self.github.get_user()
 
         repo = user.create_repo(
-            name=repository_name,
+            name=repo_name,
             description=description,
             private=private,
             auto_init=True,
         )
+
+        self.repo = repo
+
+        default_branch = repo.default_branch
+
+        branch = repo.get_branch(default_branch)
 
         return {
             "name": repo.name,
@@ -247,5 +279,6 @@ class GitHubProvider(GitProvider):
             "url": repo.html_url,
             "clone_url": repo.clone_url,
             "default_branch": repo.default_branch,
+            "initial_commit_sha": branch.commit.sha
         }  
 

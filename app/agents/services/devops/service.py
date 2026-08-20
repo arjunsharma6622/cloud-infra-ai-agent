@@ -1,16 +1,16 @@
 from .factory import get_git_provider
 
 async def create_infra_pr(
-    repository_config: dict,
+    repo_config: dict,
     generated_code: dict[str, str],
 ):
     provider = get_git_provider(
-        repository_config
+        repo_config
     )
 
-    target_branch = repository_config["target_branch"]
+    target_branch = repo_config["target_branch"]
 
-    thread_id = repository_config["thread_id"]
+    thread_id = repo_config["thread_id"]
 
     branch_name = (
         f"ai/infra/{thread_id}"
