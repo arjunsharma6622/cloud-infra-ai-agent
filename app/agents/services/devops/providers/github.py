@@ -30,6 +30,8 @@ class GitHubProvider(GitProvider):
 
     # use repo methods
     def use_repo(self, repo_name: str):
+        print(self.owner)
+        print(repo_name)
         self.repo = self.github.get_repo(
             f"{self.owner}/{repo_name}"
         )

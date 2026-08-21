@@ -20,7 +20,7 @@ async def bootstrap_github_repo():
     try:
         repo_config = {
             "provider": "github",
-            "owner": "arjunsharma6622"
+            "owner": "arjunsharma6622-temp1"
         }
 
         provider = get_git_provider(
