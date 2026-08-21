@@ -19,7 +19,7 @@ async def bootstrap_repo(
 
         # add github actions workflow
 
-    workflow = get_terraform_workflow()
+    workflow = get_terraform_workflow(cloud_provider='aws')
 
     workflow_files = {
         ".github/workflows/terraform.yml": workflow
