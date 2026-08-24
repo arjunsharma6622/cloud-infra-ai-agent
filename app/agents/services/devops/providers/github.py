@@ -1,10 +1,13 @@
 import os
 import asyncio
+import base64
 from pathlib import Path
 
 from github import Github, Auth, InputGitTreeElement
 
 from ..base import GitProvider
+
+from nacl import encoding, public
 
 
 class GitHubProvider(GitProvider):
@@ -284,3 +287,68 @@ class GitHubProvider(GitProvider):
             "initial_commit_sha": branch.commit.sha
         }  
 
+    def _encrypt_secret(
+        self,
+        public_key: str,
+        secret_value: str,
+    ) -> str:
+
+        public_key_bytes = base64.b64decode(
+            public_key
+        )
+
+        sealed_box = public.SealedBox(
+            public.PublicKey(
+                public_key_bytes
+            )
+        )
+
+        encryped = sealed_box.encrypt(
+            secret_value.encode("utf-8")
+        )
+
+        return base64.b64decode(
+            encryped
+        ).decode("utf-8")
+
+    async def set_repo_secret(self, name, value):
+
+        await asyncio.to_thread(
+            self._set_repo_secret,
+            name=name,
+            value=value
+        )
+
+    def _set_repo_secret(
+        self,
+        name: str,
+        value: str,
+    ) -> None:
+
+        repo = self._require_repo()
+
+        # get repo public key
+        response = repo._requester.requestJsonAndCheck(
+            "GET",
+            f"/repos/{self.owner}/{repo.name}/actions/secrets/public-key"
+        )
+
+        key_data = response[1]
+
+        public_key = key_data["key"]
+        key_id = key_data["key_id"]
+
+        # encrypt using libsodium
+        encryped_value = self._encrypt_secret(
+            public_key=public_key,
+            secret_value=value
+        )
+
+        repo._requester.requestJsonAndCheck(
+            "PUT",
+            f"/repos/{self.owner}/{repo.name}/actions/secrets/{name}",
+            input={
+                "encrypted_value": encryped_value,
+                "key_id": key_id,
+            }
+        )

@@ -44,3 +44,46 @@ class GitProvider(ABC):
         private: bool = True,
     ) -> dict:
         pass
+
+    # ==============================
+    # Repository secrets / variables
+    # ==============================
+
+    @abstractmethod
+    async def set_repo_secret(
+        self,
+        name: str,
+        value: str,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def set_repo_variable(
+        self,
+        name: str,
+        value: str,
+    ) -> None:
+        pass
+
+    # ==============================
+    # Environment secrets / variables
+    # ==============================
+
+    @abstractmethod
+    async def set_environment_secret(
+        self,
+        environment_name: str,
+        name: str,
+        value: str,
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def set_environment_variable(
+        self,
+        environment_name: str,
+        name: str,
+        value: str,
+    ) -> None:
+        pass
+    

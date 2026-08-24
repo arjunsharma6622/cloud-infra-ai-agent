@@ -4,6 +4,7 @@ from .services.devops.service import (
 )
 from .services.devops.factory import get_git_provider
 from .services.devops.repo_bootstrap import bootstrap_repo
+from .services.common_services import generate_backend_tf
 
 async def devops_node(
     state: AgentState,
@@ -55,10 +56,17 @@ async def devops_node(
     })
 
     # create AI tf PR
+    generated_code = {
+        **state["generated_code"],
+        "backend.tf": generate_backend_tf(
+            provider=state["repo_config"]["provider"],
+            thread_id=state["thread_id"],
+        ),
+    }
 
     pr_result = await create_infra_pr(
         repo_config=repo_config,
-        generated_code=state["generated_code"],
+        generated_code=generated_code,
     )
 
     return {
