@@ -86,4 +86,37 @@ class GitProvider(ABC):
         value: str,
     ) -> None:
         pass
+
+
+    # set repo and env secters and vars
+    @abstractmethod
+    async def set_repo_secrets(
+        self,
+        secrets: dict[str, str]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def set_repo_variables(
+        self,
+        variables: dict[str, str]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def set_environment_secrets(
+        self,
+        environment_name: str,
+        secrets: dict[str, str]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    async def set_environment_variables(
+        self,
+        environment_name: str,
+        variables: dict[str, str]
+    ) -> None:
+        pass
+    
     

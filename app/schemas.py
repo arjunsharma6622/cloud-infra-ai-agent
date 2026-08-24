@@ -13,3 +13,19 @@ class GitHubPRTestRequest(BaseModel):
     repository: str
     target_branch: str = "dev"
     files: Dict[str, str]
+
+class ConfigItem(BaseModel):
+    name: str
+    value: str
+
+class GitHubConfigTestRequest(BaseModel):
+    repository: str
+
+    repo_secret: ConfigItem
+    repo_variable: ConfigItem
+
+    environment_name: str
+
+    environment_secret: ConfigItem
+    environment_variable: ConfigItem
+    

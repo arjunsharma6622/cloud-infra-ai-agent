@@ -32,23 +32,20 @@ def find_affected_units(
 
 def generate_backend_tf(cloud_provider, thread_id):
 
-    if cloud_provider == "aws":
-        return {
-            "backend.tf": f"""
-terraform {{
-  backend "s3" {{
-    bucket       = "infra-ai-terraform-state-6622"
-    key          = "projects/{thread_id}/terraform.tfstate"
-    region       = "ap-south-1"
-    use_lockfile = true
-  }}
-}}
-"""
-        }
+    if cloud_provider.casefold() == "aws".casefold():
+        return f"""
+        terraform {{
+        backend "s3" {{
+            bucket       = "infra-ai-terraform-state-6622"
+            key          = "projects/{thread_id}/terraform.tfstate"
+            region       = "ap-south-1"
+            use_lockfile = true
+        }}
+        }}
+        """
 
 #     if cloud_provider == "azure":
-#         return {
-#             "backend.tf": f"""
+#         return f"""
 # terraform {{
 #   backend "azurerm" {{
 #     storage_account_name = "infraaitfstate"
@@ -58,5 +55,7 @@ terraform {{
 #   }}
 # }}
 # """
-#         }
+    raise ValueError(
+        f"Unsupported cloud provider: {cloud_provider}"
+    )
     

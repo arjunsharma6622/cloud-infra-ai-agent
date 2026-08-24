@@ -7,7 +7,7 @@ from github import Github, Auth, InputGitTreeElement
 
 from ..base import GitProvider
 
-from nacl import encoding, public
+from nacl import public
 
 
 class GitHubProvider(GitProvider):
@@ -298,17 +298,15 @@ class GitHubProvider(GitProvider):
         )
 
         sealed_box = public.SealedBox(
-            public.PublicKey(
-                public_key_bytes
-            )
+            public.PublicKey(public_key_bytes)
         )
 
-        encryped = sealed_box.encrypt(
+        encrypted = sealed_box.encrypt(
             secret_value.encode("utf-8")
         )
 
-        return base64.b64decode(
-            encryped
+        return base64.b64encode(
+            encrypted
         ).decode("utf-8")
 
     async def set_repo_secret(self, name, value):
@@ -339,7 +337,7 @@ class GitHubProvider(GitProvider):
         key_id = key_data["key_id"]
 
         # encrypt using libsodium
-        encryped_value = self._encrypt_secret(
+        encrypted_value = self._encrypt_secret(
             public_key=public_key,
             secret_value=value
         )
@@ -348,7 +346,194 @@ class GitHubProvider(GitProvider):
             "PUT",
             f"/repos/{self.owner}/{repo.name}/actions/secrets/{name}",
             input={
-                "encrypted_value": encryped_value,
+                "encrypted_value": encrypted_value,
                 "key_id": key_id,
             }
         )
+
+
+    def _ensure_environment(
+        self,
+        environment_name: str,
+    ) -> None:
+
+        repo = self._require_repo()
+
+        repo._requester.requestJsonAndCheck(
+            "PUT",
+            f"/repos/{self.owner}/{repo.name}"
+            f"/environments/{environment_name}",
+            input={},
+        )
+
+    async def set_repo_variable(
+        self,
+        name: str,
+        value: str
+    ) -> None:
+
+        await asyncio.to_thread(
+            self._set_repo_variable,
+            name=name,
+            value=value
+        )
+
+
+    def _set_repo_variable(
+        self,
+        name: str,
+        value: str,
+    ) -> None:
+
+        repo = self._require_repo()
+
+        # TODO: right now its only POST but we need to make it idempotent
+        # first do GET to check if already exists, then POST or PATCH accordingly
+
+        repo._requester.requestJsonAndCheck(
+            "POST",
+            f"/repos/{self.owner}/{repo.name}/actions/variables",
+            input={
+                "name": name,
+                "value": value
+            }
+        )
+
+    async def set_environment_secret(
+        self,
+        environment_name: str,
+        name: str,
+        value: str,
+    ) -> None:
+
+        await asyncio.to_thread(
+            self._set_environment_secret,
+            environment_name,
+            name,
+            value,
+        )
+
+    def _set_environment_secret(
+        self,
+        environment_name: str,
+        name: str,
+        value: str
+    ) -> None:
+
+        repo = self._require_repo()
+
+        # ensure env exists
+        self._ensure_environment(
+            environment_name=environment_name
+        )
+
+        response = repo._requester.requestJsonAndCheck(
+            "GET",
+            f"/repos/{self.owner}/{repo.name}"
+            f"/environments/{environment_name}"
+            f"/secrets/public-key"
+        )
+
+        key_data = response[1]
+
+        encrypted_value = self._encrypt_secret(
+            key_data["key"],
+            value
+        )
+
+        repo._requester.requestJsonAndCheck(
+            "PUT",
+            f"/repos/{self.owner}/{repo.name}"
+            f"/environments/{environment_name}"
+            f"/secrets/{name}",
+            input={
+                "encrypted_value": encrypted_value,
+                "key_id": key_data["key_id"]
+            }
+        )
+
+    async def set_environment_variable(
+        self,
+        environment_name: str,
+        name: str,
+        value: str
+    ) -> None:
+
+        await asyncio.to_thread(
+            self._set_environment_variable,
+            environment_name,
+            name,
+            value
+        )
+
+    def _set_environment_variable(
+        self,
+        environment_name: str,
+        name: str,
+        value: str
+    ) -> None:
+
+        repo = self._require_repo()
+
+        # ensure env exists
+        self._ensure_environment(
+            environment_name=environment_name
+        )
+
+        repo._requester.requestJsonAndCheck(
+            "POST",
+            f"/repos/{self.owner}/{repo.name}"
+            f"/environments/{environment_name}"
+            f"/variables",
+            input={
+                "name": name,
+                "value": value
+            }
+        )
+
+    async def set_repo_secrets(
+        self,
+        secrets: dict[str, str]
+    ) -> None:
+        for name, value in secrets.items():
+            await self.set_repo_secret(
+                name=name,
+                value=value
+            )
+
+    async def set_repo_variables(
+        self,
+        variables: dict[str, str]
+    ) -> None:
+        for name, value in variables.items():
+            await self.set_repo_variable(
+                name=name,
+                value=value
+            )
+
+    async def set_environment_secrets(
+        self,
+        environment_name: str,
+        secrets: dict[str, str],
+    ) -> None:
+
+        for name, value in secrets.items():
+            await self.set_environment_secret(
+                environment_name=environment_name,
+                name=name,
+                value=value,
+            )
+
+
+    async def set_environment_variables(
+        self,
+        environment_name: str,
+        variables: dict[str, str],
+    ) -> None:
+
+        for name, value in variables.items():
+            await self.set_environment_variable(
+                environment_name=environment_name,
+                name=name,
+                value=value,
+            )

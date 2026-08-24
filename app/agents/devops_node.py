@@ -1,3 +1,4 @@
+import os
 from .state import AgentState
 from .services.devops.service import (
     create_infra_pr,
@@ -55,11 +56,28 @@ async def devops_node(
         "target_branch": "dev",
     })
 
+    # TEMP: add repo secrets and vars
+    # right now manually adding these from the env vars
+    # later, we need to add these from our ui
+    # also think about where to store in some valut and access from there (for enhanced security)
+    await provider.set_repo_secrets(
+        {
+            "AWS_ACCESS_KEY_ID": os.getenv("AWS_ACCESS_KEY_ID"),
+            "AWS_SECRET_ACCESS_KEY": os.getenv("AWS_SECRET_ACCESS_KEY")
+        }
+    )
+
+    await provider.set_repo_variables(
+        {
+            "AWS_REGION": os.getenv("AWS_REGION")
+        }
+    )
+
     # create AI tf PR
     generated_code = {
         **state["generated_code"],
         "backend.tf": generate_backend_tf(
-            provider=state["repo_config"]["provider"],
+            cloud_provider=state["cloud_provider"],
             thread_id=state["thread_id"],
         ),
     }
