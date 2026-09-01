@@ -55,4 +55,8 @@ class AgentState(TypedDict):
     pull_request_id: str
     deployment_status: str
     deployment_error: str | None
+
+    # Terraform input request
+    terraform_inputs: list[dict[str, Any]]
+    terraform_inputs_status: dict[str, str]
     

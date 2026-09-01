@@ -1,3 +1,5 @@
+import hcl2
+from io import StringIO
 
 def find_affected_units(
     diagnostics: list[dict],
@@ -58,4 +60,50 @@ def generate_backend_tf(cloud_provider, thread_id):
     raise ValueError(
         f"Unsupported cloud provider: {cloud_provider}"
     )
-    
+
+def extract_terraform_inputs(generated_code: dict[str, str]) -> list[dict]:
+
+    variables_tf = generated_code.get(
+        "variables.tf"
+    )   
+
+    if not variables_tf:
+        return []
+
+    parsed = hcl2.load(
+        StringIO(variables_tf)
+    )
+
+    result = []
+
+    for variable_block in parsed.get(
+        "variable",
+        []
+    ):
+        for name, config in variable_block.items():
+
+            default_exists = (
+                "default" in config
+            )
+
+            result.append({
+                "name": name,
+                "type": config.get(
+                    "type",
+                    "string"
+                ),
+                "description": config.get(
+                    "description",
+                    ""
+                ),
+                "required": not default_exists,
+                "sensitive": config.get(
+                    "sensitive",
+                    False,
+                ),
+                "default": config.get(
+                    "default"
+                )
+            })
+
+    return result
