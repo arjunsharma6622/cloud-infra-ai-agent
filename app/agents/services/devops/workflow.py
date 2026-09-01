@@ -1,4 +1,3 @@
-
 def generate_terraform_workflow(
     cloud_provider: str,
     terraform_inputs: list[dict],
@@ -19,18 +18,26 @@ def generate_terraform_workflow(
         if item["sensitive"]:
 
             env_lines.append(
-                f"          TF_VAR_{item['name']}: "
+                f"      TF_VAR_{item['name']}: "
                 f"${{{{ secrets.{name} }}}}"
             )
 
         else:
 
             env_lines.append(
-                f"          TF_VAR_{item['name']}: "
+                f"      TF_VAR_{item['name']}: "
                 f"${{{{ vars.{name} }}}}"
             )
 
-    terraform_env = "\n".join(env_lines)
+    # Only add env block when there are Terraform inputs
+    if env_lines:
+        terraform_env = (
+            "    env:\n"
+            + "\n".join(env_lines)
+            + "\n"
+        )
+    else:
+        terraform_env = ""
 
     return f"""name: Terraform Deployment
 
@@ -44,9 +51,7 @@ jobs:
   terraform:
     name: Terraform Deployment
     runs-on: ubuntu-latest
-    env:
 {terraform_env}
-
     steps:
 
       - name: Checkout repository

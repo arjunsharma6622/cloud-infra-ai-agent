@@ -128,6 +128,7 @@ async def get_chat_history(
 async def process_graph_stream(
     stream,
     thread_id: str,
+    compiled_graph,
 ):
     generation_started = False
 
@@ -347,6 +348,137 @@ async def process_graph_stream(
                 ),
             }) + "\n"
 
+    # ============================================================
+    # GRAPH COMPLETED
+    # ============================================================
+
+    final_state = (
+        await compiled_graph.aget_state(
+            {
+                "configurable": {
+                    "thread_id": thread_id,
+                }
+            }
+        )
+    ).values
+
+    # ------------------------------------------------------------
+    # Build final output
+    # ------------------------------------------------------------
+
+    final_output = {
+        "project_spec": final_state.get(
+            "project_spec",
+            {},
+        ),
+
+        "srs": final_state.get(
+            "srs_document",
+            "",
+        ),
+
+        "architecture": final_state.get(
+            "architecture_plan",
+            "",
+        ),
+
+        "cloud_provider": final_state.get(
+            "cloud_provider",
+            "",
+        ),
+
+        "terraform_resources": final_state.get(
+            "terraform_resources",
+            [],
+        ),
+
+        "project_plan": final_state.get(
+            "project_plan",
+            {},
+        ),
+
+        "terraform": final_state.get(
+            "generated_code",
+            {},
+        ),
+
+        # Terraform inputs
+        "terraform_inputs": final_state.get(
+            "terraform_inputs",
+            [],
+        ),
+
+        "terraform_inputs_status": final_state.get(
+            "terraform_inputs_status",
+            {},
+        ),
+
+        # DevOps
+        "git_branch": final_state.get(
+            "git_branch",
+            "",
+        ),
+
+        "git_commit_id": final_state.get(
+            "git_commit_id",
+            "",
+        ),
+
+        "pull_request_url": final_state.get(
+            "pull_request_url",
+            "",
+        ),
+
+        "pull_request_id": final_state.get(
+            "pull_request_id",
+        ),
+
+        "deployment_status": final_state.get(
+            "deployment_status",
+            "",
+        ),
+
+        "deployment_error": final_state.get(
+            "deployment_error",
+        ),
+    }
+
+    # ------------------------------------------------------------
+    # Save final assistant message
+    # ------------------------------------------------------------
+
+    chat_repo.save_message(
+        thread_id=thread_id,
+        role=Role.ASSISTANT,
+        message_type=MessageType.FINAL_OUTPUT,
+        content=json.dumps(
+            jsonable_encoder(
+                final_output
+            )
+        ),
+        metadata={
+            "agent": "graph_complete",
+        },
+    )
+
+    # ------------------------------------------------------------
+    # Send final output to frontend
+    # ------------------------------------------------------------
+
+    success = final_state.get(
+        "validation_passed",
+        False,
+    )
+
+    yield json.dumps(
+        {
+            "type": "complete",
+            "success": success,
+            "output": jsonable_encoder(
+                final_output
+            ),
+        }
+    ) + "\n"
 
 
 
@@ -391,94 +523,154 @@ async def stream_assistant(
     )
 
     # --------------------------------------------------------
-    # Don't allow normal /stream to resume an arbitrary
-    # Terraform-input interrupt.
+    # Existing interrupted graph
     # --------------------------------------------------------
 
     if snapshot.next:
 
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "This project is waiting for input. "
-                "Use the terraform-inputs endpoint "
-                "to continue."
+        terraform_interrupt = False
+
+        for task in snapshot.tasks:
+
+            interrupts = getattr(
+                task,
+                "interrupts",
+                [],
+            )
+
+            for interrupt_event in interrupts:
+
+                value = getattr(
+                    interrupt_event,
+                    "value",
+                    None,
+                )
+
+                if (
+                    isinstance(value, dict)
+                    and value.get("type")
+                    == "terraform_inputs_required"
+                ):
+                    terraform_interrupt = True
+                    break
+
+            if terraform_interrupt:
+                break
+
+        # ----------------------------------------------------
+        # Terraform input interrupt
+        # ----------------------------------------------------
+
+        if terraform_interrupt:
+
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "TERRAFORM_INPUTS_REQUIRED",
+                    "message": (
+                        "This project is waiting for "
+                        "Terraform inputs."
+                    ),
+                },
+            )
+
+        # ----------------------------------------------------
+        # Otherwise this is the normal clarification
+        # interrupt.
+        #
+        # /stream is allowed to resume it.
+        # ----------------------------------------------------
+
+    if snapshot.next:
+
+    # ----------------------------------------------------
+    # Existing clarification interrupt
+    # ----------------------------------------------------
+
+        stream = compiled_graph.astream(
+            Command(
+                resume=user_prompt
             ),
+            config=config,
         )
 
-    initial_state = {
+    else:
 
-        "thread_id": thread_id,
+        initial_state = {
 
-        "messages": [
-            HumanMessage(
-                content=user_prompt
-            )
-        ],
+            "thread_id": thread_id,
 
-        "clarification_question": None,
+            "messages": [
+                HumanMessage(
+                    content=user_prompt
+                )
+            ],
 
-        # Requirements
-        "project_spec": {},
-        "srs_document": "",
+            "clarification_question": None,
 
-        # Architecture
-        "architecture_plan": "",
-        "cloud_provider": "",
-        "terraform_resources": [],
+            # Requirements
+            "project_spec": {},
+            "srs_document": "",
 
-        # Project planning
-        "project_plan": {},
+            # Architecture
+            "architecture_plan": "",
+            "cloud_provider": "",
+            "terraform_resources": [],
 
-        # Generation
-        "current_generation_unit": None,
-        "generation_unit_index": 0,
-        "generated_units": {},
-        "generated_code": {},
-        "generation_prompt": "",
-        "generation_mode": "initial",
+            # Project planning
+            "project_plan": {},
 
-        # Repair
-        "units_to_regenerate": [],
-        "current_repair_index": 0,
+            # Generation
+            "current_generation_unit": None,
+            "generation_unit_index": 0,
+            "generated_units": {},
+            "generated_code": {},
+            "generation_prompt": "",
+            "generation_mode": "initial",
 
-        # Validation
-        "validation_run_id": "",
-        "validation_stage": "",
-        "validation_passed": False,
-        "validation_errors": [],
-        "validation_attempts": 0,
+            # Repair
+            "units_to_regenerate": [],
+            "current_repair_index": 0,
 
-        # Terraform inputs
-        "terraform_inputs": [],
-        "terraform_inputs_status": {},
+            # Validation
+            "validation_run_id": "",
+            "validation_stage": "",
+            "validation_passed": False,
+            "validation_errors": [],
+            "validation_attempts": 0,
 
-        # DevOps
-        "repo_config": {
-            "provider": "github",
-            "owner": "arjunsharma6622-temp1",
-        },
+            # Terraform inputs
+            "terraform_inputs": [],
+            "terraform_inputs_status": {},
 
-        "git_branch": "",
-        "git_commit_id": "",
-        "pull_request_url": "",
-        "pull_request_id": "",
-        "deployment_status": "",
-        "deployment_error": None,
-    }
+            # DevOps
+            "repo_config": {
+                "provider": "github",
+                "owner": "arjunsharma6622-temp1",
+            },
 
-    stream = compiled_graph.astream(
-        initial_state,
-        config=config,
-    )
+            "git_branch": "",
+            "git_commit_id": "",
+            "pull_request_url": "",
+            "pull_request_id": "",
+            "deployment_status": "",
+            "deployment_error": None,
+        }
+
+        stream = compiled_graph.astream(
+            initial_state,
+            config=config,
+        )
 
     return StreamingResponse(
         process_graph_stream(
             stream,
             thread_id,
+            compiled_graph=compiled_graph
         ),
         media_type="application/x-ndjson",
     )
+
 
 # terraform inputs post
 
@@ -579,6 +771,7 @@ async def submit_terraform_inputs(
         process_graph_stream(
             stream,
             thread_id,
+            compiled_graph=compiled_graph
         ),
         media_type="application/x-ndjson",
     )

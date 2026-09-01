@@ -35,15 +35,14 @@ def find_affected_units(
 def generate_backend_tf(cloud_provider, thread_id):
 
     if cloud_provider.casefold() == "aws".casefold():
-        return f"""
-        terraform {{
-        backend "s3" {{
-            bucket       = "infra-ai-terraform-state-6622"
-            key          = "projects/{thread_id}/terraform.tfstate"
-            region       = "ap-south-1"
-            use_lockfile = true
-        }}
-        }}
+        return f"""terraform {{
+    backend "s3" {{
+        bucket       = "infra-ai-terraform-state-6622"
+        key          = "projects/{thread_id}/terraform.tfstate"
+        region       = "ap-south-1"
+        use_lockfile = true
+    }}
+}}
         """
 
 #     if cloud_provider == "azure":
