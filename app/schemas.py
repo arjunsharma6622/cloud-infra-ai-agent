@@ -1,5 +1,8 @@
-from pydantic import BaseModel
-from typing import Dict
+from pydantic import (
+    BaseModel,
+    Field,
+)
+from typing import Dict, Any
 
 # class ProjectPlan(BaseModel):
 
@@ -28,4 +31,11 @@ class GitHubConfigTestRequest(BaseModel):
 
     environment_secret: ConfigItem
     environment_variable: ConfigItem
+    
+
+class TerraformInputsRequest(BaseModel):
+
+    values: Dict[str, Any] = Field(
+        default_factory=dict
+    )
     

@@ -1,4 +1,5 @@
 from langgraph.graph import StateGraph, END
+
 from .state import AgentState
 from .parser import intent_parser_node
 from .srs import srs_node
@@ -6,30 +7,96 @@ from .architecture import architecture_planner_node
 from .project_planner import project_planner_node
 from .generator import iac_generator_node
 from .validator import validation_agent_node
-from .devops_node import devops_node
 from .clarification import clarification_node
+from .repo_bootstrap_node import repo_bootstrap_node
+from .terraform_input_node import terraform_input_node
+from .create_pr_node import create_pr_node
+
 from .graph_helper_functions import (
-    route_after_parser, 
-    route_after_validation, 
-    route_after_generation
+    route_after_parser,
+    route_after_validation,
+    route_after_generation,
 )
+
 import aiosqlite
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+
 workflow = StateGraph(AgentState)
 
-workflow.add_node("intent_parser", intent_parser_node)
-workflow.add_node("srs_generator", srs_node)
-workflow.add_node("architecture_planner", architecture_planner_node)
-workflow.add_node("project_planner", project_planner_node)
-workflow.add_node("iac_generator", iac_generator_node)
-workflow.add_node("validation_agent", validation_agent_node)
-workflow.add_node("devops", devops_node)
-workflow.add_node("clarification", clarification_node)
 
-workflow.set_entry_point("intent_parser")
+# ============================================================
+# NODES
+# ============================================================
 
-workflow.add_edge("clarification", "intent_parser")
+workflow.add_node(
+    "intent_parser",
+    intent_parser_node,
+)
+
+workflow.add_node(
+    "srs_generator",
+    srs_node,
+)
+
+workflow.add_node(
+    "architecture_planner",
+    architecture_planner_node,
+)
+
+workflow.add_node(
+    "project_planner",
+    project_planner_node,
+)
+
+workflow.add_node(
+    "iac_generator",
+    iac_generator_node,
+)
+
+workflow.add_node(
+    "validation_agent",
+    validation_agent_node,
+)
+
+workflow.add_node(
+    "repo_bootstrap",
+    repo_bootstrap_node,
+)
+
+workflow.add_node(
+    "terraform_inputs",
+    terraform_input_node,
+)
+
+workflow.add_node(
+    "create_pr",
+    create_pr_node,
+)
+
+workflow.add_node(
+    "clarification",
+    clarification_node,
+)
+
+
+# ============================================================
+# ENTRY
+# ============================================================
+
+workflow.set_entry_point(
+    "intent_parser"
+)
+
+
+# ============================================================
+# REQUIREMENTS
+# ============================================================
+
+workflow.add_edge(
+    "clarification",
+    "intent_parser",
+)
 
 workflow.add_conditional_edges(
     "intent_parser",
@@ -40,7 +107,15 @@ workflow.add_conditional_edges(
     },
 )
 
-workflow.add_edge("srs_generator", "architecture_planner")
+
+# ============================================================
+# GENERATION
+# ============================================================
+
+workflow.add_edge(
+    "srs_generator",
+    "architecture_planner",
+)
 
 workflow.add_edge(
     "architecture_planner",
@@ -61,22 +136,55 @@ workflow.add_conditional_edges(
     },
 )
 
+
+# ============================================================
+# VALIDATION
+# ============================================================
+
 workflow.add_conditional_edges(
     "validation_agent",
     route_after_validation,
     {
         "retry": "iac_generator",
-        "devops": "devops",
+        "repo_bootstrap": "repo_bootstrap",
         "end": END,
         "blocked": END,
     },
 )
 
-workflow.add_edge("devops", END)
+
+# ============================================================
+# DEVOPS
+# ============================================================
+
+workflow.add_edge(
+    "repo_bootstrap",
+    "terraform_inputs",
+)
+
+workflow.add_edge(
+    "terraform_inputs",
+    "create_pr",
+)
+
+workflow.add_edge(
+    "create_pr",
+    END,
+)
+
+
+# ============================================================
+# CHECKPOINTER
+# ============================================================
 
 async def create_graph():
-    conn = await aiosqlite.connect("checkpoints.sqlite")
+
+    conn = await aiosqlite.connect(
+        "checkpoints.sqlite"
+    )
 
     memory = AsyncSqliteSaver(conn)
 
-    return workflow.compile(checkpointer=memory)
+    return workflow.compile(
+        checkpointer=memory
+    )
