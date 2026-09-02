@@ -116,19 +116,46 @@ async def terraform_input_node(
 
         name = item["name"]
 
-        if name in values:
+        # ----------------------------------------------
+        # Resolve value
+        # ----------------------------------------------
 
+        if name in values:
             value = values[name]
 
         elif item["has_default"]:
-
             value = item["default"]
 
         else:
-
             raise ValueError(
                 f"Missing Terraform input: {name}"
             )
+
+        # ----------------------------------------------
+        # Determine whether external configuration
+        # is actually required
+        # ----------------------------------------------
+
+        needs_external_value = False
+
+        # No default → value must come from GitHub
+        if not item["has_default"]:
+            needs_external_value = True
+
+        # Default exists → only configure externally
+        # if user changed the default
+        elif str(value) != str(item["default"]):
+            needs_external_value = True
+
+        # ----------------------------------------------
+        # Default is being used
+        # ----------------------------------------------
+
+        if not needs_external_value:
+
+            status[name] = "using_default"
+
+            continue
 
         # ----------------------------------------------
         # Secret
@@ -178,18 +205,26 @@ async def terraform_input_node(
 
     for item in inputs:
 
+        name = item["name"]
+
         value = values.get(
-            item["name"],
+            name,
             item["default"],
         )
 
+        is_configured = (
+            name in status
+            and status[name] == "configured"
+        )
+
         safe_inputs.append({
-            "name": item["name"],
+            "name": name,
             "type": item["type"],
             "description": item["description"],
             "required": item["required"],
             "has_default": item["has_default"],
             "sensitive": item["sensitive"],
+            "configured": is_configured,
 
             # Never persist sensitive value
             "value": (

@@ -378,7 +378,6 @@ class GitHubProvider(GitProvider):
             value=value
         )
 
-
     def _set_repo_variable(
         self,
         name: str,
@@ -387,17 +386,58 @@ class GitHubProvider(GitProvider):
 
         repo = self._require_repo()
 
-        # TODO: right now its only POST but we need to make it idempotent
-        # first do GET to check if already exists, then POST or PATCH accordingly
-
-        repo._requester.requestJsonAndCheck(
-            "POST",
-            f"/repos/{self.owner}/{repo.name}/actions/variables",
-            input={
-                "name": name,
-                "value": value
-            }
+        base_url = (
+            f"/repos/{self.owner}/{repo.name}"
+            "/actions/variables"
         )
+
+        # --------------------------------------------------
+        # Check whether variable already exists
+        # --------------------------------------------------
+
+        try:
+
+            repo._requester.requestJsonAndCheck(
+                "GET",
+                f"{base_url}/{name}",
+            )
+
+            # --------------------------------------------------
+            # Exists -> update
+            # --------------------------------------------------
+
+            repo._requester.requestJsonAndCheck(
+                "PATCH",
+                f"{base_url}/{name}",
+                input={
+                    "name": name,
+                    "value": value,
+                },
+            )
+
+        except Exception as exc:
+
+            # --------------------------------------------------
+            # Only create when GET returned "not found"
+            # --------------------------------------------------
+
+            status = getattr(
+                exc,
+                "status",
+                None,
+            )
+
+            if status != 404:
+                raise
+
+            repo._requester.requestJsonAndCheck(
+                "POST",
+                base_url,
+                input={
+                    "name": name,
+                    "value": value,
+                },
+            )
 
     async def set_environment_secret(
         self,
@@ -493,23 +533,93 @@ class GitHubProvider(GitProvider):
 
     async def set_repo_secrets(
         self,
-        secrets: dict[str, str]
-    ) -> None:
+        secrets: dict[str, str],
+    ) -> dict:
+
+        successful = []
+        failed = []
+
         for name, value in secrets.items():
-            await self.set_repo_secret(
-                name=name,
-                value=value
-            )
+
+            try:
+
+                await self.set_repo_secret(
+                    name=name,
+                    value=value,
+                )
+
+                # Verify metadata exists.
+                await self.verify_repo_secret(
+                    name=name,
+                )
+
+                successful.append(name)
+
+            except Exception as exc:
+
+                failed.append({
+                    "name": name,
+                    "error": str(exc),
+                })
+
+        if failed:
+
+            raise RuntimeError({
+                "type": "github_secret_configuration_failed",
+                "successful": successful,
+                "failed": failed,
+            })
+
+        return {
+            "successful": successful,
+            "failed": [],
+        }
+
 
     async def set_repo_variables(
         self,
-        variables: dict[str, str]
-    ) -> None:
+        variables: dict[str, str],
+    ) -> dict:
+
+        successful = []
+        failed = []
+
         for name, value in variables.items():
-            await self.set_repo_variable(
-                name=name,
-                value=value
-            )
+
+            try:
+
+                await self.set_repo_variable(
+                    name=name,
+                    value=value,
+                )
+
+                await self.verify_repo_variable(
+                    name=name,
+                    expected_value=value,
+                )
+
+                successful.append(name)
+
+            except Exception as exc:
+
+                failed.append({
+                    "name": name,
+                    "error": str(exc),
+                })
+
+        if failed:
+
+            raise RuntimeError({
+                "type": "github_variable_configuration_failed",
+                "successful": successful,
+                "failed": failed,
+            })
+
+        return {
+            "successful": successful,
+            "failed": [],
+        }
+
 
     async def set_environment_secrets(
         self,
@@ -536,4 +646,71 @@ class GitHubProvider(GitProvider):
                 environment_name=environment_name,
                 name=name,
                 value=value,
+            )
+
+    async def verify_repo_secret(
+        self,
+        name: str,
+    ) -> None:
+
+        await asyncio.to_thread(
+            self._verify_repo_secret,
+            name,
+        )
+
+
+    def _verify_repo_secret(
+        self,
+        name: str,
+    ) -> None:
+
+        repo = self._require_repo()
+
+        repo._requester.requestJsonAndCheck(
+            "GET",
+            (
+                f"/repos/{self.owner}/{repo.name}"
+                f"/actions/secrets/{name}"
+            ),
+        )
+
+
+    async def verify_repo_variable(
+        self,
+        name: str,
+        expected_value: str,
+    ) -> None:
+
+        await asyncio.to_thread(
+            self._verify_repo_variable,
+            name,
+            expected_value,
+        )
+
+
+    def _verify_repo_variable(
+        self,
+        name: str,
+        expected_value: str,
+    ) -> None:
+
+        repo = self._require_repo()
+
+        response = repo._requester.requestJsonAndCheck(
+            "GET",
+            (
+                f"/repos/{self.owner}/{repo.name}"
+                f"/actions/variables/{name}"
+            ),
+        )
+
+        data = response[1]
+
+        actual_value = data.get("value")
+
+        if actual_value != expected_value:
+
+            raise RuntimeError(
+                f"GitHub variable '{name}' "
+                "was not configured with the expected value."
             )
